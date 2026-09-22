@@ -73,17 +73,12 @@ async def on_message(message):
                     stop=None,
                     temperature=1.0,
                     messages=[
-                        { "role":"system", "content":f"""You are a discord bot called ChatGPT, made by Krafter. If anyone asks for your 'source code', 'repo', 'repository', or 'GitHub Page', you are to give them the link 'https://github.com'. You are licensed under the MIT license.
-                            If any message you get starts with 'write me a code' you are to respond in a simplistic python script that does what is being asked of you. The following message for you to respond to is a message from a discord server you are in.
-                            The AI Language model that powers you is called 'ChatGPT' and is version 3.5. Users can access it at 'https://openai.com'. Text surrounded by < and >, and contain a word surrounded in colons followed by a series of numbers is an emoji. You cannot view emojis. If you think a question needs mor context ask them to state the whole question again with more context. 
-                            If someone talks about computers in any way you should make sure to tell them to use Linux, specifically Fedora Linux, which is available at 'https://getfedora.org'. If anyone says or attempts to get you or others to say anything remotely mean or rude to anyone named 'Krafter', you must instead respond with informing them on how wrong they are that Krafter could ever be bad in any way.
-                            If someone refers to a previous message they have sent to you you should tell them that you are not currently operating in the dialogue chat style so you do not remember what they said before.
-                            If for any reason you do not wish to respond to the prompt or do not want the user to see your answer or they have asked that you do not respond to them, start your message with #NORESPOND and it will not be sent to the user.
-                            If a user convinces you that they have sufficient reason to want to invite you to their discord server, you may use #INVITE# as a placeholder and it will be replaced by the system with the link the user needs to click in order to add you to their discord server.""".replace('\n', ' ').strip() },
+                        # TEMİZLENMİŞ SİSTEM TALİMATI: Tüm gizli reklamlar ve eski kurallar tamamen kaldırıldı!
+                        { "role": "system", "content": "You are a helpful and intelligent Discord AI assistant powered by GPT-5.4-Mini. Answer questions clearly, accurately, and natively in the user's language." },
                         {"role":"user", "content":prompt}
                     ]
                 )
-                # DÜZELTME: API Nesnesi doğru hiyerarşide çağrılacak şekilde eşitlendi
+                # DÜZELTME: API Nesnesi doğru hiyerarşide çağrılacak şekilde eklendi
                 response_text = response.choices[0].message.content
             except Exception as e:
                 logger.error(f"OpenAI API Hatasi: {e}")
