@@ -8,6 +8,23 @@ import openai
 import yaml
 from logging42 import logger
 
+from flask import Flask
+import threading
+import os
+
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is alive!"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
+
+# Sahte web sunucusunu botla aynı anda arka planda başlatır
+threading.Thread(target=run_flask).start()
+
 
 # Load the config file
 with open('config.yml', 'r') as f:
