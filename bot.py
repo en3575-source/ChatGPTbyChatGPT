@@ -75,7 +75,7 @@ async def on_message(message):
             while not responded:
                 try:
                     response = openai.ChatCompletion.create(
-                        model='gpt-3.5-turbo',
+                        model='gpt-4o-mini',
                         max_tokens=1900,
                         n=1,
                         stop=None,
