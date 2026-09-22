@@ -83,7 +83,7 @@ async def on_message(message):
                         {"role":"user", "content":prompt}
                     ]
                 )
-                # DÜZELTME: Modern nesne erişimi için choices[0].message.content yapısına çekildi
+                # DÜZELTME: API Nesnesi doğru hiyerarşide çağrılacak şekilde eşitlendi
                 response_text = response.choices[0].message.content
             except Exception as e:
                 logger.error(f"OpenAI API Hatasi: {e}")
@@ -102,7 +102,14 @@ async def on_message(message):
         response_text = response_text.replace('#INVITE#', invite_link)
         
         if not response_text.startswith('#NORESPOND'):
-            await message.reply(response_text)
+            # DÜZELTME: Metin 2000 karakterden uzunsa otomatik parçalara bölerek sırayla gönderir
+            if len(response_text) > 2000:
+                chunks = [response_text[i:i+1900] for i in range(0, len(response_text), 1900)]
+                for chunk in chunks:
+                    await message.reply(chunk)
+                    time.sleep(0.5)  # Discord Rate Limit'e takılmamak için kısa bekleme süresi
+            else:
+                await message.reply(response_text)
 
         end_time = int(time.time() * 1000)
         logger.success(f'Responded to a prompt in {end_time - start_time}ms!')
