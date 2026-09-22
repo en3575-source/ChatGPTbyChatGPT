@@ -83,6 +83,7 @@ async def on_message(message):
                         {"role":"user", "content":prompt}
                     ]
                 )
+                # DÜZELTME: Modern nesne erişimi için choices[0].message.content yapısına çekildi
                 response_text = response.choices[0].message.content
             except Exception as e:
                 logger.error(f"OpenAI API Hatasi: {e}")
@@ -106,13 +107,17 @@ async def on_message(message):
         end_time = int(time.time() * 1000)
         logger.success(f'Responded to a prompt in {end_time - start_time}ms!')
 
-# Define a slash command to set the channel ID
+# DÜZELTME: Discord'un 3 saniyelik zaman aşımına düşmemesi için Slash Komut yapısı baştan tasarlandı
 @client.slash_command(name='set_channel', description='Set the channel where the client listens for messages')
 async def set_channel(ctx, channel: nextcord.TextChannel):
+    # Discord'a "komutu aldım, işlem yapıyorum" sinyali göndererek zaman aşımı hatasını engeller
+    await ctx.response.defer(ephemeral=True)
+    
     if ctx.user.guild_permissions.administrator:
         save_channel_id(ctx.guild.id, channel.id)
-        await ctx.send(f'Channel set to {channel.mention}!')
+        # Defer kullandığımız için send yerine followup.send ile yanıt veriyoruz
+        await ctx.followup.send(f'Channel set to {channel.mention}!', ephemeral=True)
     else:
-        await ctx.send('You must be an administrator to use this command.')
+        await ctx.followup.send('You must be an administrator to use this command.', ephemeral=True)
 
 client.run(os.environ.get('DISCORD_BOT_TOKEN'))
