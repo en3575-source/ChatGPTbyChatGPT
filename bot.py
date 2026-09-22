@@ -67,7 +67,7 @@ async def on_message(message):
             try:
                 # GÜNCEL KUTUPHANE STANDARDI: v1.0.0+ uyumlu chat completions yapısı
                 response = client_ai.chat.completions.create(
-                    model='gpt-4o-mini',
+                    model='gpt-5.4-mini',
                     max_tokens=1900,
                     n=1,
                     stop=None,
