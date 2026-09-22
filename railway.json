@@ -1,0 +1,13 @@
+{
+  "$schema": "https://railway.app",
+  "build": {
+    "builder": "NIXPACKS",
+    "nixpacksPlan": {
+      "phases": {
+        "setup": {
+          "nixPkgs": ["python311"]
+        }
+      }
+    }
+  }
+}
