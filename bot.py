@@ -10,7 +10,6 @@ from logging42 import logger
 
 from flask import Flask
 import threading
-import os
 
 app = Flask('')
 
@@ -26,11 +25,8 @@ def run_flask():
 threading.Thread(target=run_flask).start()
 
 
-# Load the config file
-with open('config.yml', 'r') as f:
-    config = yaml.safe_load(f)
-
-openai.api_key = config['OPENAI_API_KEY']
+# DÜZELTME 1: OpenAI Anahtarını config.yml yerine doğrudan Render'dan güvenle çeker
+openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 intents = nextcord.Intents.default()
 intents.guild_messages = True
@@ -100,8 +96,19 @@ async def on_message(message):
                         response_text = f"**⚠️ API Response Error! (Tried {counter} times).**" 
                         responded = True
 
-        # Replacements
-        response_text = response_text.replace('#INVITE#', config['BOT_INVITE_LINK'])
+        # DÜZELTME 2: config.yml boş olacağı için çökmemesi adına davet linkini güvenli bir fallback'e çeker
+        invite_link = "https://discord.com"
+        if os.path.exists('config.yml'):
+            try:
+                with open('config.yml', 'r') as f:
+                    local_config = yaml.safe_load(f)
+                    if local_config and 'BOT_INVITE_LINK' in local_config:
+                        invite_link = local_config['BOT_INVITE_LINK']
+            except Exception:
+                pass
+
+        response_text = response_text.replace('#INVITE#', invite_link)
+        
         # Do not send if ChatGPT doesnt want it
         if not response_text.startswith('#NORESPOND'):
         # Send the response back to the channel
@@ -120,6 +127,4 @@ async def set_channel(ctx, channel: nextcord.TextChannel):
         await ctx.send('You must be an administrator to use this command.')
 
 # Load the client token from the config file
-import os
 client.run(os.environ.get('DISCORD_BOT_TOKEN'))
-
