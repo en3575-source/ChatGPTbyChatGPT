@@ -106,7 +106,7 @@ async def on_message(message):
                     size="1024x1024"
                 )
                 # DÜZELTME: OpenAI modern kütüphane standartlarına göre nesne yapısı eşitlendi
-                image_url = image_response.data.url
+                image_url = image_response.data[0].url
                 
                 # Download it natively into memory to upload directly to Discord
                 img_data = requests.get(image_url).content
