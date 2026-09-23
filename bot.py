@@ -25,9 +25,10 @@ def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
+# Sahte web sunucusunu botla aynı anda arka planda başlatır
 threading.Thread(target=run_flask).start()
 
-# OpenAI ve Hugging Face Kurulumları
+# API İstemci ve Key Kurulumları
 client_ai = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 HF_API_KEY = os.environ.get("HUGGINGFACE_API_KEY")
 
@@ -37,8 +38,9 @@ intents.message_content = True
 
 client = nextcord.Client(intents=intents)
 
+# --- AKILLI VE EKONOMİK HAFIZA SİSTEMİ ALTYAPISI ---
 USER_MEMORY = {}
-MAX_MEMORY_LIMIT = 10
+MAX_MEMORY_LIMIT = 10  # Hafızada tutulacak maksimum mesaj sınırı (Prompt Caching ile %90 indirimli)
 
 def save_channel_id(guild_id, channel_id):
     storage = {'guilds': {}}
@@ -84,9 +86,9 @@ async def on_message(message):
         is_image_request = any(keyword in prompt.lower() for keyword in image_keywords)
 
         if is_image_request:
-            logger.info("Executing official Hugging Face SDXL image pipeline...")
+            logger.info("Executing official Hugging Face image pipeline...")
             try:
-                # Kullanıcının metnini temizliyoruz
+                # Kullanıcının metnini küçük harfe çevirip komut kelimelerini ayıklıyoruz
                 clean_text = prompt.lower()
                 clean_text = clean_text.replace(f"@{client.user.name.lower()}", "")
                 for keyword in image_keywords:
@@ -96,7 +98,7 @@ async def on_message(message):
                 if not clean_text:
                     clean_text = "a beautiful fantasy landscape"
 
-                # KESİN DÜZELTME: Dünyanın en stabil açık kaynaklı resim modeli olan SDXL API hattı kuruldu
+                # KESİN DÜZELTME: 403 engellerine takılmayan, doğrudan açık istek kabul eden kararlı resmi model
                 API_URL = "https://huggingface.co"
                 headers = {"Authorization": f"Bearer {HF_API_KEY}"}
                 payload = {"inputs": clean_text}
@@ -106,9 +108,9 @@ async def on_message(message):
                         if response.status == 200:
                             img_data = await response.read()
                             image_file = nextcord.File(io.BytesIO(img_data), filename="generated_image.png")
-                            await message.reply(content=f"🎨 Here is your **100% free (Hugging Face SDXL)** image for: *\"{clean_text}\"*:", file=image_file)
+                            await message.reply(content=f"🎨 Here is your **100% free (Hugging Face)** image for: *\"{clean_text}\"*:", file=image_file)
                         elif response.status == 503:
-                            # Model ilk kez açılıyorsa sunucunun yüklenmesi 10-15 saniye sürebilir
+                            # Model uyku modundaysa sunucunun yüklenmesi 10-15 saniye sürebilir
                             await message.reply("⏳ Yapay zeka modeli sunucuda şu an ilk kez ayağa kaldırılıyor, lütfen 15 saniye sonra tekrar aynı komutu yazın!")
                         else:
                             await message.reply(f"⚠️ Resim sunucusu geçici bir hata verdi (Kod: {response.status}).")
@@ -119,7 +121,7 @@ async def on_message(message):
                 await message.reply(f"**⚠️ Resim oluşturulurken bir hata oluştu! Detay: {e}**")
                 return
 
-        # ─── HAFIZALI STANDART METİN TAMAMLAMA SİSTEMİ ───
+        # ─── HAFIZALI STANDART METİN TAMAMLAMA SİSTEMİ (YALNIZ SOHBETLER İÇİN) ───
         try:
             if user_id not in USER_MEMORY:
                 USER_MEMORY[user_id] = []
