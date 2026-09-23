@@ -6,3 +6,4 @@ logging42==0.0.8
 Flask==3.0.3
 audioop-lts
 setuptools==81.0.0
+requests
