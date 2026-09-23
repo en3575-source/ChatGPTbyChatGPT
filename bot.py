@@ -84,24 +84,31 @@ async def on_message(message):
         if is_image_request:
             logger.info("Executing isolated Pollinations AI free image pipeline...")
             try:
-                # 1. Aşama: Sadece kullanıcının metnini temizliyoruz (Asla ana domain linkine dokunmuyoruz)
-                clean_prompt_text = prompt.lower()
-                clean_prompt_text = clean_prompt_text.replace(f"@{client.user.name.lower()}", "")
+                # ─── 1. AŞAMA: SADECE SAF METNİ KENDİ İÇİNDE TEMİZLE ───
+                # Kesinlikle linke veya domain adına dokunmadan sadece prompt verisini ayıklıyoruz
+                clean_text = prompt.lower()
+                clean_text = clean_text.replace(f"@{client.user.name.lower()}", "")
                 
+                # Sadece kullanıcının cümlesindeki tetikleyicileri siliyoruz
                 for keyword in image_keywords:
-                    clean_prompt_text = clean_prompt_text.replace(keyword, "")
+                    clean_text = clean_text.replace(keyword, "")
                 
-                clean_prompt_text = clean_prompt_text.replace(":", "").strip()
+                clean_text = clean_text.replace(":", "").strip()
                 
-                if not clean_prompt_text:
-                    clean_prompt_text = "cute cat"
+                if not clean_text:
+                    clean_text = "fantasy landscape"
 
-                # 2. Aşama: Saf açıklamayı internet uyumlu formata çeviriyoruz
-                encoded_prompt = urllib.parse.quote(clean_prompt_text)
+                # Saf temizlenmiş açıklamayı internet formatına çeviriyoruz
+                encoded_prompt = urllib.parse.quote(clean_text)
                 
-                # KESİN DÜZELTME: Ana domain adresi tamamen izole edildi. Artık kelime silme döngüleri buradaki '.ai' ifadesine dokunamaz!
-                image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&model=flux&nologo=true"
-                logger.info(f"Failsafe Completely Isolated URL: {image_url}")
+                # ─── 2. AŞAMA: DOMAIN ADRESİNİ TAMAMEN BAĞIMSIZ SABİTLE ───
+                # KESİN DÜZELTME: Domain string yapısı döngülerden tamamen izole edildi, artık .ai parçalanamaz!
+                target_host = "https://pollinations.ai"
+                target_path = f"/p/{encoded_prompt}?width=1024&height=1024&model=flux&nologo=true"
+                
+                # İki bağımsız bloğu kırılma riski olmadan birleştiriyoruz
+                image_url = target_host + target_path
+                logger.info(f"🔒 ULTIMATE FAILSAFE URL: {image_url}")
                 
                 async with aiohttp.ClientSession() as session:
                     async with session.get(image_url, timeout=20) as response:
@@ -109,7 +116,7 @@ async def on_message(message):
                             img_data = await response.read()
                             if len(img_data) > 5000:
                                 image_file = nextcord.File(io.BytesIO(img_data), filename="generated_image.png")
-                                await message.reply(content=f"🎨 Here is your **100% free** generated image for: *\"{clean_prompt_text}\"*:", file=image_file)
+                                await message.reply(content=f"🎨 Here is your **100% free** generated image for: *\"{clean_text}\"*:", file=image_file)
                             else:
                                 await message.reply("⚠️ Resim motoru bu promptu çizemedi. Lütfen daha detaylı bir İngilizce açıklama yazın.")
                         else:
