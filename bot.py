@@ -3,7 +3,8 @@ import sys
 import time
 import asyncio
 import io
-import base64  # KESİN DÜZELTME: OpenAI gpt-image modelinin döndürdüğü ham veriyi çözmek için eklendi
+import aiohttp
+import json  # KESİN DÜZELTME: OpenAI kütüphane hatalarını baypas etmek için eklendi
 
 import nextcord
 from nextcord.ext import commands
@@ -96,26 +97,35 @@ async def on_message(message):
                 if not clean_text:
                     clean_text = "fantasy landscape"
 
-                # KESİN DÜZELTME: Görseli boş link yerine ham b64_json formatında istemeyi zorunlu kılıyoruz!
+                # Resmi üretiyoruz (Sorun çıkaran response_format kaldırıldı)
                 image_response = client_ai.images.generate(
                     model="gpt-image-1-mini",
                     prompt=clean_text,
                     n=1,
-                    size="1024x1024",
-                    response_format="b64_json"  # Link arama hatasını tamamen bitiren zorunlu parametre
+                    size="1024x1024"
                 )
                 
-                # Gelen şifreli ham veriyi listeden güvenli bir şekilde çekiyoruz
-                b64_data = image_response.data[0].b64_json
+                # KESİN DÜZELTME: Constructor str hatasını tamamen baypas etmek için 
+                # API yanıtını ham JSON modeline döküp veriyi doğrudan sözlükten çekiyoruz!
+                raw_json_string = image_response.model_dump_json()
+                parsed_data = json.loads(raw_json_string)
                 
-                # KESİN DÜZELTME: Şifreli metni sunucu hafızasında gerçek bir resim dosyasına (bytes) çeviriyoruz
-                img_bytes = base64.b64decode(b64_data)
+                # Ham JSON verisi içerisindeki ilk resmin internet adresini saf metin (str) olarak alıyoruz
+                image_url = parsed_data['data'][0]['url']
+                logger.info(f"Successfully extracted direct image URL: {image_url}")
                 
-                # Nextcord kütüphane kurallarına %100 uygun olarak nesneyi ambalajlıyoruz
-                image_file = nextcord.File(fp=io.BytesIO(img_bytes), filename="generated_image.png")
-                
-                # Resmi fiziksel bir dosya olarak kanala kusursuzca yüklüyoruz
-                await message.reply(content=f"🎨 Here is your image for: *\"{clean_text}\"*:", file=image_file)
+                # Resmi asenkron indirip Nextcord standartlarına uygun bir .png dosyası olarak teslim ediyoruz
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(image_url, timeout=20) as response:
+                        if response.status == 200:
+                            img_data = await response.read()
+                            
+                            # fp= ile hafıza akışını, filename= ile de dosya adını (.png) Nextcord'un tam istediği gibi metin olarak besliyoruz
+                            image_file = nextcord.File(fp=io.BytesIO(img_data), filename="generated_image.png")
+                            
+                            await message.reply(content=f"🎨 Here is your image for: *\"{clean_text}\"*:", file=image_file)
+                        else:
+                            await message.reply("⚠️ Görsel Discord'a yüklenirken geçici bir sorun oluştu.")
                 return
 
             except Exception as e:
