@@ -97,7 +97,7 @@ async def on_message(message):
                 if not clean_text:
                     clean_text = "fantasy landscape"
 
-                # KESİN DÜZELTME: Hataya neden olan response_format parametresi tamamen söküldü!
+                # Resmi OpenAI model bağlantısı
                 image_response = client_ai.images.generate(
                     model="gpt-image-1-mini",
                     prompt=clean_text,
@@ -105,17 +105,29 @@ async def on_message(message):
                     size="1024x1024"
                 )
                 
-                # KESİN DÜZELTME: Linkin boş veya None kalmasını önlemek için listenin 0. indeksine doğrudan erişildi!
                 image_url = image_response.data[0].url
                 logger.info(f"Successfully retrieved image URL: {image_url}")
                 
-                # Güvenli asenkron indirme ve Discord'a dosya olarak yükleme motoru
+                # Resmi asenkron olarak indirip disk üzerine fiziksel dosya olarak kaydediyoruz
                 async with aiohttp.ClientSession() as session:
                     async with session.get(image_url, timeout=20) as response:
                         if response.status == 200:
                             img_data = await response.read()
-                            image_file = nextcord.File(fp=io.BytesIO(img_data), filename="generated_image.png")
+                            
+                            # KESİN DÜZELTME: Resmi sunucu diskine fiziksel bir .png dosyası olarak yazıyoruz
+                            local_file_path = "generated_image.png"
+                            with open(local_file_path, "wb") as f:
+                                f.write(img_data)
+                            
+                            # KESİN DÜZELTME: Nextcord'a doğrudan fiziksel dosyanın metinsel yolunu ("generated_image.png") 
+                            # parametre olarak veriyoruz. Böylece "parameter should be str" kuralı %100 karşılanmış oluyor!
+                            image_file = nextcord.File(local_file_path)
+                            
                             await message.reply(content=f"🎨 Here is your image for: *\"{clean_text}\"*:", file=image_file)
+                            
+                            # İşlem bitince sunucu hafızasında çöp birikmesin diye geçici dosyayı siliyoruz
+                            if os.path.exists(local_file_path):
+                                os.remove(local_file_path)
                         else:
                             await message.reply("⚠️ Görsel Discord'a yüklenirken geçici bir sorun oluştu.")
                 return
