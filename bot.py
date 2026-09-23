@@ -3,7 +3,8 @@ import sys
 import time
 import asyncio
 import io
-import base64  # KESİN DÜZELTME: OpenAI'ın döndürdüğü ham görsel verisini çözmek için eklendi
+import aiohttp
+import urllib.parse
 
 import nextcord
 from nextcord.ext import commands
@@ -96,26 +97,27 @@ async def on_message(message):
                 if not clean_text:
                     clean_text = "fantasy landscape"
 
-                # KESİN DÜZELTME: Görseli boş link yerine ham Base64 şifreli veri olarak döndürmesini zorunlu kılıyoruz
+                # KESİN DÜZELTME: Hataya neden olan response_format parametresi tamamen söküldü!
                 image_response = client_ai.images.generate(
                     model="gpt-image-1-mini",
                     prompt=clean_text,
                     n=1,
-                    size="1024x1024",
-                    response_format="b64_json"
+                    size="1024x1024"
                 )
                 
-                # Gelen şifreli ham veriyi okuyoruz
-                b64_data = image_response.data[0].b64_json
+                # KESİN DÜZELTME: Linkin boş veya None kalmasını önlemek için listenin 0. indeksine doğrudan erişildi!
+                image_url = image_response.data[0].url
+                logger.info(f"Successfully retrieved image URL: {image_url}")
                 
-                # KESİN DÜZELTME: Şifreli metni sunucu hafızasında gerçek bir resim dosyasına (bytes) çeviriyoruz
-                img_bytes = base64.b64decode(b64_data)
-                
-                # Nextcord kütüphane kurallarına %100 uygun olarak nesneyi ambalajlıyoruz
-                image_file = nextcord.File(fp=io.BytesIO(img_bytes), filename="generated_image.png")
-                
-                # Resmi fiziksel bir dosya olarak kanala kusursuzca yüklüyoruz
-                await message.reply(content=f"🎨 Here is your image for: *\"{clean_text}\"*:", file=image_file)
+                # Güvenli asenkron indirme ve Discord'a dosya olarak yükleme motoru
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(image_url, timeout=20) as response:
+                        if response.status == 200:
+                            img_data = await response.read()
+                            image_file = nextcord.File(fp=io.BytesIO(img_data), filename="generated_image.png")
+                            await message.reply(content=f"🎨 Here is your image for: *\"{clean_text}\"*:", file=image_file)
+                        else:
+                            await message.reply("⚠️ Görsel Discord'a yüklenirken geçici bir sorun oluştu.")
                 return
 
             except Exception as e:
