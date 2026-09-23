@@ -3,7 +3,7 @@ import sys
 import time
 import asyncio
 import io
-import urllib.parse
+import base64  # KESİN DÜZELTME: OpenAI'ın döndürdüğü ham görsel verisini çözmek için eklendi
 
 import nextcord
 from nextcord.ext import commands
@@ -96,29 +96,26 @@ async def on_message(message):
                 if not clean_text:
                     clean_text = "fantasy landscape"
 
-                # Panelinizdeki resmi ekonomi modeli
+                # KESİN DÜZELTME: Görseli boş link yerine ham Base64 şifreli veri olarak döndürmesini zorunlu kılıyoruz
                 image_response = client_ai.images.generate(
                     model="gpt-image-1-mini",
                     prompt=clean_text,
                     n=1,
-                    size="1024x1024"
+                    size="1024x1024",
+                    response_format="b64_json"
                 )
                 
-                # OpenAI'dan gelen güvenli internet linki
-                image_url = image_response.data[0].url
+                # Gelen şifreli ham veriyi okuyoruz
+                b64_data = image_response.data[0].b64_json
                 
-                # KESİN DÜZELTME: Dosya yükleme hatasını (str constructor hatası) tamamen baypas etmek için
-                # resmi Nextcord Embed kartının içerisine gömerek doğrudan link olarak servis ediyoruz!
-                embed = nextcord.Embed(
-                    title="🎨 Görsel Başarıyla Üretildi!",
-                    description=f"**Açıklama:** *\"{clean_text}\"*",
-                    color=0x00ffb3
-                )
-                embed.set_image(url=image_url)
-                embed.set_footer(text="Powered by OpenAI gpt-image-1-mini")
+                # KESİN DÜZELTME: Şifreli metni sunucu hafızasında gerçek bir resim dosyasına (bytes) çeviriyoruz
+                img_bytes = base64.b64decode(b64_data)
                 
-                # Kanala fiziksel dosya yüklemeden Embed kartını gönderiyoruz
-                await message.reply(embed=embed)
+                # Nextcord kütüphane kurallarına %100 uygun olarak nesneyi ambalajlıyoruz
+                image_file = nextcord.File(fp=io.BytesIO(img_bytes), filename="generated_image.png")
+                
+                # Resmi fiziksel bir dosya olarak kanala kusursuzca yüklüyoruz
+                await message.reply(content=f"🎨 Here is your image for: *\"{clean_text}\"*:", file=image_file)
                 return
 
             except Exception as e:
