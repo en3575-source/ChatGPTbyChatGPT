@@ -92,21 +92,21 @@ async def on_message(message):
         image_file = None
 
         try:
-            # OPTIONAL FEATURE: Detect if the user wants an image generated
-            image_keywords = ["create an image", "generate an image", "draw", "paint", "imagine", "make a picture", "resim çiz", "resim oluştur"]
+            # DEĞİŞTİRİLEN KISIM: Tetikleyici kelimeler esnetilerek Türkçe karakter hataları engellendi
+            image_keywords = ["draw", "paint", "image", "picture", "resim", "ciz", "çiz", "görsel", "gorsel"]
             is_image_request = any(keyword in prompt.lower() for keyword in image_keywords)
 
             if is_image_request:
                 logger.info("Executing image generation pipeline...")
-                # DÜZELTME: En ucuz resim modeli (gpt-image-1-mini) ve tasarruflu çözünürlük (512x512) entegre edildi
+                # En ucuz resim modeli (gpt-image-1-mini) ve tasarruflu çözünürlük (512x512)
                 image_response = client_ai.images.generate(
                     model="gpt-image-1-mini",  
                     prompt=prompt,
                     n=1,
                     size="512x512"
                 )
-                # DÜZELTME: Nesne dizilim hatası giderildi (.data[0].url yerine yeni API standardı sağlandı)
-                image_url = image_response.data[0].url
+                # DÜZELTME: OpenAI modern kütüphane standartlarına göre nesne yapısı eşitlendi
+                image_url = image_response.data.url
                 
                 # Download it natively into memory to upload directly to Discord
                 img_data = requests.get(image_url).content
@@ -115,14 +115,11 @@ async def on_message(message):
             
             else:
                 # ─── HAFIZALI STANDART METİN TAMAMLAMA SİSTEMİ ───
-                # 1. Kullanıcının daha önce hafızası yoksa yeni bir liste oluştur
                 if user_id not in USER_MEMORY:
                     USER_MEMORY[user_id] = []
 
-                # 2. Kullanıcının yeni yazdığı mesajı kendi hafıza havuzuna ekle
                 USER_MEMORY[user_id].append({"role": "user", "content": prompt})
 
-                # 3. OpenAI'a gönderilecek mesaj listesini hazırla (Önce Sistem Talimatı)
                 messages_payload = [
                     { 
                         "role": "system", 
@@ -130,7 +127,6 @@ async def on_message(message):
                     }
                 ]
                 
-                # Sistem talimatının ardına kullanıcının geçmiş hafıza listesini ekle
                 messages_payload.extend(USER_MEMORY[user_id])
 
                 response = client_ai.chat.completions.create(
@@ -143,14 +139,11 @@ async def on_message(message):
                 )
                 response_text = response.choices[0].message.content
                 
-                # 4. Yapay zekanın verdiği cevabı da kullanıcının hafızasına ekle
                 USER_MEMORY[user_id].append({"role": "assistant", "content": response_text})
 
-                # 5. Hafıza şişip cüzdanı bitirmesin diye son limit mesajdan eskisini kırp
                 if len(USER_MEMORY[user_id]) > MAX_MEMORY_LIMIT:
                     USER_MEMORY[user_id] = USER_MEMORY[user_id][-MAX_MEMORY_LIMIT:]
                 
-                # Print exact usage metrics directly into Railway logs to track token footprint
                 logger.info(f"📊 [OpenAI Usage Tracker] -> {response.usage}")
 
         except Exception as e:
@@ -185,7 +178,7 @@ async def on_message(message):
         end_time = int(time.time() * 1000)
         logger.success(f'Responded to a prompt in {end_time - start_time}ms!')
 
-# DÜZELTME: Yarım kalan Slash komut fonksiyonu eksiksiz olarak tamamlandı
+# DÜZELTME: Yarım kalan Slash komut fonksiyonu tamamen kapatıldı ve tamamlandı
 @client.slash_command(name='set_channel', description='Set the channel where the client listens for messages')
 async def set_channel(ctx, channel: nextcord.TextChannel):
     await ctx.response.defer(ephemeral=True)
