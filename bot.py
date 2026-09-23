@@ -140,8 +140,8 @@ async def on_message(message):
                     temperature=0.7,  # Hafızalı sohbette daha tutarlı cevaplar için 0.7 idealdir
                     messages=messages_payload
                 )
-                # DÜZELTME: API Nesnesi modern hiyerarşiye uygun olarak çağrıldı
-                response_text = response.choices.message.content
+                # KESİN DÜZELTME: choices listesinin ilk elemanına `[0]` indeksiyle erişim sağlandı
+                response_text = response.choices[0].message.content
                 
                 # 4. Yapay zekanın verdiği cevabı da kullanıcının hafızasına ekle
                 USER_MEMORY[user_id].append({"role": "assistant", "content": response_text})
