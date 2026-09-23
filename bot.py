@@ -2,9 +2,6 @@ import os
 import sys
 import time
 import asyncio
-import io
-import aiohttp
-import json  # KESİN DÜZELTME: OpenAI kütüphane hatalarını baypas etmek için eklendi
 
 import nextcord
 from nextcord.ext import commands
@@ -15,6 +12,7 @@ from logging42 import logger
 from flask import Flask
 import threading
 
+# Render/Railway Port Taramasını Atlatmak İçin Arka Plan Web Sunucusu
 app = Flask('')
 
 @app.route('/')
@@ -25,7 +23,6 @@ def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
-# Sahte web sunucusunu botla aynı anda arka planda başlatır
 threading.Thread(target=run_flask).start()
 
 # API İstemci Kurulumu (Resmi OpenAI v1.0.0+ Standart)
@@ -38,6 +35,7 @@ intents.message_content = True
 client = nextcord.Client(intents=intents)
 
 # --- AKILLI VE EKONOMİK HAFIZA SİSTEMİ ALTYAPISI ---
+# Yapısı: { user_id: [ {"role": "user", "content": "..."}, {"role": "assistant", "content": "..."} ] }
 USER_MEMORY = {}
 MAX_MEMORY_LIMIT = 10  # Hafızada tutulacak maksimum mesaj sınırı (Prompt Caching ile %90 indirimli)
 
@@ -64,82 +62,35 @@ async def on_ready():
 async def on_message(message):
     global USER_MEMORY
     
+    # 1. Filtre: Bot kendi yazdığı mesajlara cevap verip döngüye girmesin
     if message.author.bot:
         return
 
+    # 2. Filtre: Sadece /set_channel ile kaydedilen kanaldaki mesajları dinle
     target_channel_id = get_channel_id(message.guild.id)
     if not target_channel_id or str(message.channel.id) != str(target_channel_id):
         return
 
+    # 3. Filtre: Komut öneklerini (prefix) görmezden gel
     if message.content.startswith(('#', '.', '<')):
         return
 
+    # Discord kanalında "Yazıyor..." animasyonunu başlatır
     async with message.channel.typing():
         start_time = int(time.time() * 1000)
         prompt = message.content
         user_id = message.author.id
         logger.info(f'Got prompt from User {user_id}: "{prompt}"')
 
-        # Resim isteklerini kontrol et
-        image_keywords = ["draw", "paint", "image", "picture", "resim", "ciz", "çiz", "görsel", "gorsel"]
-        is_image_request = any(keyword in prompt.lower() for keyword in image_keywords)
-
-        if is_image_request:
-            logger.info("Executing official OpenAI modern image pipeline...")
-            try:
-                # Kullanıcının metnini küçük harfe çevirip komut kelimelerini ayıklıyoruz
-                clean_text = prompt.lower()
-                clean_text = clean_text.replace(f"@{client.user.name.lower()}", "")
-                for keyword in image_keywords:
-                    clean_text = clean_text.replace(keyword, "")
-                clean_text = clean_text.replace(":", "").strip()
-                
-                if not clean_text:
-                    clean_text = "fantasy landscape"
-
-                # Resmi üretiyoruz (Sorun çıkaran response_format kaldırıldı)
-                image_response = client_ai.images.generate(
-                    model="gpt-image-1-mini",
-                    prompt=clean_text,
-                    n=1,
-                    size="1024x1024"
-                )
-                
-                # KESİN DÜZELTME: Constructor str hatasını tamamen baypas etmek için 
-                # API yanıtını ham JSON modeline döküp veriyi doğrudan sözlükten çekiyoruz!
-                raw_json_string = image_response.model_dump_json()
-                parsed_data = json.loads(raw_json_string)
-                
-                # Ham JSON verisi içerisindeki ilk resmin internet adresini saf metin (str) olarak alıyoruz
-                image_url = parsed_data['data'][0]['url']
-                logger.info(f"Successfully extracted direct image URL: {image_url}")
-                
-                # Resmi asenkron indirip Nextcord standartlarına uygun bir .png dosyası olarak teslim ediyoruz
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(image_url, timeout=20) as response:
-                        if response.status == 200:
-                            img_data = await response.read()
-                            
-                            # fp= ile hafıza akışını, filename= ile de dosya adını (.png) Nextcord'un tam istediği gibi metin olarak besliyoruz
-                            image_file = nextcord.File(fp=io.BytesIO(img_data), filename="generated_image.png")
-                            
-                            await message.reply(content=f"🎨 Here is your image for: *\"{clean_text}\"*:", file=image_file)
-                        else:
-                            await message.reply("⚠️ Görsel Discord'a yüklenirken geçici bir sorun oluştu.")
-                return
-
-            except Exception as e:
-                logger.error(f"Image Pipeline Hatasi: {e}")
-                await message.reply(f"**⚠️ Resim oluşturulurken bir hata oluştu! Detay: {e}**")
-                return
-
         # ─── HAFIZALI STANDART METİN TAMAMLAMA SİSTEMİ ───
         try:
             if user_id not in USER_MEMORY:
                 USER_MEMORY[user_id] = []
 
+            # Kullanıcının mesajını hafıza geçmişine ekle
             USER_MEMORY[user_id].append({"role": "user", "content": prompt})
 
+            # OpenAI paket hiyerarşisi oluşturma
             messages_payload = [
                 { 
                     "role": "system", 
@@ -147,6 +98,7 @@ async def on_message(message):
                 }
             ]
             
+            # Sistem talimatının ardına kullanıcının geçmiş sohbetini bağla
             messages_payload.extend(USER_MEMORY[user_id])
 
             response = client_ai.chat.completions.create(
@@ -159,13 +111,16 @@ async def on_message(message):
             )
             response_text = response.choices[0].message.content
             
+            # Yapay zekanın cevabını bir sonraki mesaja kadar hafızaya kaydet
             USER_MEMORY[user_id].append({"role": "assistant", "content": response_text})
 
+            # Hafıza havuzunu cüzdanı korumak adına son 10 mesajla sınırla (Kırp)
             if len(USER_MEMORY[user_id]) > MAX_MEMORY_LIMIT:
                 USER_MEMORY[user_id] = USER_MEMORY[user_id][-MAX_MEMORY_LIMIT:]
             
             logger.info(f"📊 [OpenAI Usage Tracker] -> {response.usage}")
 
+            # Davet Linki Ayarlarını config.yml üzerinden çek
             invite_link = "https://discord.com"
             if os.path.exists('config.yml'):
                 try:
@@ -178,6 +133,7 @@ async def on_message(message):
 
             response_text = response_text.replace('#INVITE#', invite_link)
             
+            # Metin uzunluğu 2000 karakterden fazlaysa Discord çökmesini önlemek için parçalara böl
             if not response_text.startswith('#NORESPOND'):
                 if len(response_text) > 2000:
                     chunks = [response_text[i:i+1900] for i in range(0, len(response_text), 1900)]
@@ -194,6 +150,7 @@ async def on_message(message):
         end_time = int(time.time() * 1000)
         logger.success(f'Responded to a prompt in {end_time - start_time}ms!')
 
+# Slash komut yapısı (Discord 3 Saniye zaman aşımı engelleyici entegreli)
 @client.slash_command(name='set_channel', description='Set the channel where the client listens for messages')
 async def set_channel(ctx, channel: nextcord.TextChannel):
     await ctx.response.defer(ephemeral=True)
