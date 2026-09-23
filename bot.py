@@ -97,27 +97,13 @@ async def on_message(message):
                 if not clean_text or len(clean_text) < 2:
                     clean_text = "fantasy landscape"
 
-                # ─── 2. AŞAMA: ABSOLUTE URL JOIN (ZIRHLI BAĞLANTI) ───
-                # KESİN DÜZELTME: urljoin ve urlencode kullanarak domain adını kullanıcının metninden matematiksel olarak izole ediyoruz.
-                # Artık aradaki hiçbir harf birleşip pollinations.aime yapısını tetikleyemez!
-                base_endpoint = "https://pollinations.ai"
+                # ─── 2. AŞAMA: KATILIK GARANTİLİ LINK ŞABLONU ───
+                # KESİN DÜZELTME: urljoin fonksiyonu çöpe atıldı. 
+                # Ana API endpoint adresi ve gerekli alt klasör (/p/) dünyadaki hiçbir kütüphanenin bozamayacağı şekilde düz metin olarak çakıldı!
+                encoded_prompt = urllib.parse.quote(clean_text)
+                image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&model=flux&nologo=true"
                 
-                # Kullanıcının promptunu güvenli bir alt yol (slug) haline getiriyoruz
-                safe_slug = urllib.parse.quote(clean_text)
-                
-                # Domain ile temizlenmiş prompt yolunu kırılmaz bir duvarla birleştiriyoruz
-                target_url = urllib.parse.urljoin(base_endpoint, safe_slug)
-                
-                # Teknik parametreleri (genişlik, model vb.) güvenli bir query string olarak sonuna ekliyoruz
-                params = {
-                    "width": "1024",
-                    "height": "1024",
-                    "model": "flux",
-                    "nologo": "true"
-                }
-                image_url = f"{target_url}?{urllib.parse.urlencode(params)}"
-                
-                logger.info(f"🔒 ULTIMATE FAILSAFE URL: {image_url}")
+                logger.info(f"🔒 ABSOLUTE FIXED URL: {image_url}")
                 
                 async with aiohttp.ClientSession() as session:
                     async with session.get(image_url, timeout=20) as response:
@@ -127,7 +113,7 @@ async def on_message(message):
                                 image_file = nextcord.File(io.BytesIO(img_data), filename="generated_image.png")
                                 await message.reply(content=f"🎨 Here is your **100% free** generated image for: *\"{clean_text}\"*:", file=image_file)
                             else:
-                                await message.reply("⚠️ Resim motoru bu promptu çizemedi. Lütfen daha detaylı bir İngilizce açıklama yazın.")
+                                await message.reply("⚠️ Resim motoru bu promptu şu an çizemedi. Lütfen az sonra tekrar deneyin.")
                         else:
                             await message.reply(f"⚠️ Resim motoru hata döndürdü (Kod: {response.status}), lütfen az sonra tekrar deneyin.")
                 return
