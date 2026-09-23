@@ -96,7 +96,7 @@ async def on_message(message):
                 if not clean_text:
                     clean_text = "fantasy landscape"
 
-                # KESİN DÜZELTME: En ucuz resmi DALL-E 3 bağlantısı kuruldu
+                # KESİN DÜZELTME: API Nesne standartlarına göre model isimlendirme yapısı kilitlendi
                 image_response = client_ai.images.generate(
                     model="dall-e-3",
                     prompt=clean_text,
