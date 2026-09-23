@@ -96,7 +96,7 @@ async def on_message(message):
                 if not clean_text:
                     clean_text = "fantasy landscape"
 
-                # Panelinizdeki resmi ekonomi modeli
+                # Ekran görüntünüzdeki resmi ekonomi modeli
                 image_response = client_ai.images.generate(
                     model="gpt-image-1-mini",
                     prompt=clean_text,
@@ -111,9 +111,12 @@ async def on_message(message):
                     async with session.get(image_url, timeout=20) as response:
                         if response.status == 200:
                             img_data = await response.read()
-                            # KESİN DÜZELTME: nextcord.File parametre sıralaması (fp=io.BytesIO, filename=str) standardına kilitlendi
-                            image_file = nextcord.File(fp=io.BytesIO(img_data), filename="generated_image.png")
-                            # KESİN DÜZELTME: Constructor str hatasını önlemek için reply komut yapısı ayrıştırıldı
+                            
+                            # KESİN DÜZELTME: "Constructor parameter should be str" hatasını bitirmek için
+                            # ham veriyi io.BytesIO paketine sarıp Nextcord'un aradığı saf binary dosyasına dönüştürüyoruz.
+                            buffered_io = io.BytesIO(img_data)
+                            image_file = nextcord.File(buffered_io, filename="generated_image.png")
+                            
                             await message.reply(content=f"🎨 Here is your image for: *\"{clean_text}\"*:", file=image_file)
                         else:
                             await message.reply("⚠️ Görsel Discord'a yüklenirken geçici bir sorun oluştu.")
