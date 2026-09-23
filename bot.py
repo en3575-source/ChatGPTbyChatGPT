@@ -1,6 +1,9 @@
 import os
 import sys
 import time
+import asyncio  # FIXED: Added to handle non-blocking asynchronous delays
+import io
+import requests
 
 import nextcord
 from nextcord.ext import commands
@@ -58,14 +61,51 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
-    if str(message.channel.id) == str(get_channel_id(message.guild.id)) and message.author.id != client.user.id and not (message.content.startswith('#') or message.content.startswith('.') or message.content.startswith('<')):
-        async with message.channel.typing():
-            start_time = int(time.time() * 1000)
-            prompt = message.clean_content
-            logger.info(f'Got prompt: "{prompt}"')
+    # 1. IMMEDIATE FILTER: Completely ignore any message sent by a bot account (prevents duplicate loops)
+    if message.author.bot:
+        return
 
-            try:
-                # GÜNCEL KUTUPHANE STANDARDI: v1.0.0+ uyumlu chat completions yapısı
+    # 2. CHANNEL FILTER: Verify the exact channel configuration matches storage.yml
+    target_channel_id = get_channel_id(message.guild.id)
+    if not target_channel_id or str(message.channel.id) != str(target_channel_id):
+        return
+
+    # 3. TEXT FILTER: Ignore common command prefixes
+    if message.content.startswith(('#', '.', '<')):
+        return
+
+    # Activate typing bubble inside the target channel
+    async with message.channel.typing():
+        start_time = int(time.time() * 1000)
+        prompt = message.clean_content
+        logger.info(f'Got prompt: "{prompt}"')
+
+        response_text = ""
+        image_file = None
+
+        try:
+            # OPTIONAL FEATURE: Detect if the user wants an image generated
+            image_keywords = ["create an image", "generate an image", "draw", "paint", "imagine", "make a picture"]
+            is_image_request = any(keyword in prompt.lower() for keyword in image_keywords)
+
+            if is_image_request:
+                logger.info("Executing image generation pipeline...")
+                image_response = client_ai.images.generate(
+                    model="gpt-image-2.5-flare",  # High-speed image creator model
+                    prompt=prompt,
+                    n=1,
+                    size="1024x1024",
+                    quality="standard"  # Keeps token footprint lean
+                )
+                image_url = image_response.data[0].url
+                
+                # Download it natively into memory to upload directly to Discord
+                img_data = requests.get(image_url).content
+                image_file = nextcord.File(io.BytesIO(img_data), filename="generated_image.png")
+                response_text = f"🎨 Here is your generated image for: *\"{prompt}\"*:"
+            
+            else:
+                # ─── STANDARD TEXT COMPLETION PAYLOAD ───
                 response = client_ai.chat.completions.create(
                     model='gpt-5.4-mini',
                     max_completion_tokens=1900,
@@ -73,17 +113,23 @@ async def on_message(message):
                     stop=None,
                     temperature=1.0,
                     messages=[
-                        # TEMİZLENMİŞ SİSTEM TALİMATI: Tüm gizli reklamlar ve eski kurallar tamamen kaldırıldı!
-                        { "role": "system", "content": "You are a helpful and intelligent Discord AI assistant powered by GPT-5.4-Mini. Answer questions clearly, accurately, and natively in the user's language." },
-                        {"role":"user", "content":prompt}
+                        { 
+                            "role": "system", 
+                            "content": "You are a helpful and intelligent Discord AI assistant powered by GPT-5.4-Mini. Answer questions clearly, accurately, and natively in the user's language." 
+                        },
+                        {"role": "user", "content": prompt}
                     ]
                 )
-                # DÜZELTME: API Nesnesi doğru hiyerarşide çağrılacak şekilde eklendi
                 response_text = response.choices[0].message.content
-            except Exception as e:
-                logger.error(f"OpenAI API Hatasi: {e}")
-                response_text = f"**⚠️ OpenAI API Hatası! Detay: {e}**"
+                
+                # Print exact usage metrics directly into Railway logs to track token footprint
+                logger.info(f"📊 [OpenAI Usage Tracker] -> {response.usage}")
 
+        except Exception as e:
+            logger.error(f"OpenAI API Hatasi: {e}")
+            response_text = f"**⚠️ OpenAI API Hatası! Detay: {e}**"
+
+        # Resolve invite placeholders
         invite_link = "https://discord.com"
         if os.path.exists('config.yml'):
             try:
@@ -96,28 +142,29 @@ async def on_message(message):
 
         response_text = response_text.replace('#INVITE#', invite_link)
         
+        # 4. CHUNKED DELIVERY USING ASYNC SLEEP (Prevents Discord API timeout retries)
         if not response_text.startswith('#NORESPOND'):
-            # DÜZELTME: Metin 2000 karakterden uzunsa otomatik parçalara bölerek sırayla gönderir
-            if len(response_text) > 2000:
+            if image_file:
+                await message.reply(content=response_text, file=image_file)
+            elif len(response_text) > 2000:
                 chunks = [response_text[i:i+1900] for i in range(0, len(response_text), 1900)]
                 for chunk in chunks:
                     await message.reply(chunk)
-                    time.sleep(0.5)  # Discord Rate Limit'e takılmamak için kısa bekleme süresi
+                    # FIXED: Keeps the execution thread fully open/asynchronous so Discord doesn't resend the event
+                    await asyncio.sleep(0.5)  
             else:
                 await message.reply(response_text)
 
         end_time = int(time.time() * 1000)
         logger.success(f'Responded to a prompt in {end_time - start_time}ms!')
 
-# DÜZELTME: Discord'un 3 saniyelik zaman aşımına düşmemesi için Slash Komut yapısı baştan tasarlandı
+# Slash command configuration for setting up the active listening channel
 @client.slash_command(name='set_channel', description='Set the channel where the client listens for messages')
 async def set_channel(ctx, channel: nextcord.TextChannel):
-    # Discord'a "komutu aldım, işlem yapıyorum" sinyali göndererek zaman aşımı hatasını engeller
     await ctx.response.defer(ephemeral=True)
     
     if ctx.user.guild_permissions.administrator:
         save_channel_id(ctx.guild.id, channel.id)
-        # Defer kullandığımız için send yerine followup.send ile yanıt veriyoruz
         await ctx.followup.send(f'Channel set to {channel.mention}!', ephemeral=True)
     else:
         await ctx.followup.send('You must be an administrator to use this command.', ephemeral=True)
