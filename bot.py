@@ -4,7 +4,6 @@ import time
 import asyncio  # FIXED: Handles non-blocking asynchronous delays
 import io
 import requests
-import base64  # FIXED: Added to decode modern Base64 images directly from OpenAI
 
 import nextcord
 from nextcord.ext import commands
@@ -98,21 +97,19 @@ async def on_message(message):
 
             if is_image_request:
                 logger.info("Executing image generation pipeline...")
-                # KESİN DÜZELTME: Modeli zorlamamak için ham b64_json modunda çağırıyoruz
+                # KESİN DÜZELTME: Hataya sebep olan 'response_format' parametresi tamamen kaldırıldı!
                 image_response = client_ai.images.generate(
                     model="gpt-image-1-mini",  
                     prompt=prompt,
                     n=1,
-                    size="1024x1024",
-                    response_format="b64_json"
+                    size="1024x1024"
                 )
+                # KESİN DÜZELTME: Doğru API listeleme standardı olan `.data[0].url` yapısı entegre edildi
+                image_url = image_response.data[0].url
                 
-                # KESİN DÜZELTME: URL aramayı bırakıp, gelen şifreli veriyi doğrudan hafızadan okuyoruz
-                b64_data = image_response.data[0].b64_json
-                img_bytes = base64.b64decode(b64_data)
-                
-                # İnternetten indirme yapmadan (requests kullanmadan) doğrudan Discord'a yüklüyoruz
-                image_file = nextcord.File(io.BytesIO(img_bytes), filename="generated_image.png")
+                # Download it natively into memory to upload directly to Discord
+                img_data = requests.get(image_url).content
+                image_file = nextcord.File(io.BytesIO(img_data), filename="generated_image.png")
                 response_text = f"🎨 Here is your generated image for: *\"{prompt}\"*:"
             
             else:
