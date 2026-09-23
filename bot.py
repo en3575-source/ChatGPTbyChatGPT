@@ -98,12 +98,12 @@ async def on_message(message):
 
             if is_image_request:
                 logger.info("Executing image generation pipeline...")
-                # En ucuz resim modeli (gpt-image-1-mini) ve tasarruflu çözünürlük (512x512)
+                # En ucuz resim modeli (gpt-image-1-mini) ve tasarruflu çözünürlük (1024x1024)
                 image_response = client_ai.images.generate(
                     model="gpt-image-1-mini",  
                     prompt=prompt,
                     n=1,
-                    size="512x512"
+                    size="1024x1024"
                 )
                 # DÜZELTME: OpenAI modern kütüphane standartlarına göre nesne yapısı eşitlendi
                 image_url = image_response.data.url
