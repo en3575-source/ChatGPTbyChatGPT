@@ -98,7 +98,7 @@ async def on_message(message):
                 if not clean_text:
                     clean_text = "a beautiful fantasy landscape"
 
-                # KESİN DÜZELTME: 403 engellerine takılmayan, doğrudan açık istek kabul eden kararlı resmi model
+                # 403 engellerine takılmayan, doğrudan açık istek kabul eden kararlı resmi model
                 API_URL = "https://huggingface.co"
                 headers = {"Authorization": f"Bearer {HF_API_KEY}"}
                 payload = {"inputs": clean_text}
@@ -121,7 +121,7 @@ async def on_message(message):
                 await message.reply(f"**⚠️ Resim oluşturulurken bir hata oluştu! Detay: {e}**")
                 return
 
-        # ─── HAFIZALI STANDART METİN TAMAMLAMA SİSTEMİ (YALNIZ SOHBETLER İÇİN) ───
+        # ─── HAFIZALI STANDART METİN TAMAMLAMA SİSTEMİ ───
         try:
             if user_id not in USER_MEMORY:
                 USER_MEMORY[user_id] = []
@@ -145,7 +145,8 @@ async def on_message(message):
                 temperature=0.7,
                 messages=messages_payload
             )
-            response_text = response.choices.message.content
+            # KESİN DÜZELTME: choices listesinin ilk elemanına `[0]` indeksi doğru şekilde eklendi
+            response_text = response.choices[0].message.content
             
             USER_MEMORY[user_id].append({"role": "assistant", "content": response_text})
 
