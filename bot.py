@@ -15,7 +15,6 @@ from logging42 import logger
 from flask import Flask
 import threading
 
-# Render/Railway Port Taramasını Atlatmak İçin Arka Plan Web Sunucusu
 app = Flask('')
 
 @app.route('/')
@@ -28,7 +27,6 @@ def run_flask():
 
 threading.Thread(target=run_flask).start()
 
-# OpenAI API İstemci Kurulumu (Yeni Nesil v1.0.0+ Standart Mod)
 client_ai = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 intents = nextcord.Intents.default()
@@ -37,10 +35,8 @@ intents.message_content = True
 
 client = nextcord.Client(intents=intents)
 
-# --- AKILLI VE EKONOMİK HAFIZA SİSTEMİ ALTYAPISI ---
-# Yapısı: { user_id: [ {"role": "user", "content": "..."}, {"role": "assistant", "content": "..."} ] }
 USER_MEMORY = {}
-MAX_MEMORY_LIMIT = 10  # Hafızada tutulacak maksimum mesaj sınırı (Prompt Caching ile %90 indirimli)
+MAX_MEMORY_LIMIT = 10
 
 def save_channel_id(guild_id, channel_id):
     storage = {'guilds': {}}
@@ -65,34 +61,30 @@ async def on_ready():
 async def on_message(message):
     global USER_MEMORY
     
-    # 1. Filtre: Bot kendi yazdığı mesajlara cevap verip döngüye girmesin
     if message.author.bot:
         return
 
-    # 2. Filtre: Sadece /set_channel ile kaydedilen kanaldaki mesajları dinle
     target_channel_id = get_channel_id(message.guild.id)
     if not target_channel_id or str(message.channel.id) != str(target_channel_id):
         return
 
-    # 3. Filtre: Komut öneklerini (prefix) görmezden gel
     if message.content.startswith(('#', '.', '<')):
         return
 
-    # Discord kanalında "Yazıyor..." animasyonunu başlatır
     async with message.channel.typing():
         start_time = int(time.time() * 1000)
         prompt = message.clean_content
         user_id = message.author.id
         logger.info(f'Got prompt from User {user_id}: "{prompt}"')
 
-        # Resim Tetikleyici Kelime Kontrolü
+        # Resim isteklerini kontrol et
         image_keywords = ["draw", "paint", "image", "picture", "resim", "ciz", "çiz", "görsel", "gorsel"]
         is_image_request = any(keyword in prompt.lower() for keyword in image_keywords)
 
         if is_image_request:
-            logger.info("Executing isolated Pollinations AI free image pipeline...")
+            logger.info("Executing failsafe Pollinations AI free image pipeline...")
             try:
-                # Kullanıcının metnini küçük harfe çevirip komut kelimelerini ayıklıyoruz
+                # Sadece kullanıcının saf metnini ayıklıyoruz
                 clean_text = prompt.lower()
                 clean_text = clean_text.replace(f"@{client.user.name.lower()}", "")
                 
@@ -101,23 +93,28 @@ async def on_message(message):
                 
                 clean_text = clean_text.replace(":", "").strip()
                 
-                # Eğer temizleme sonrası metin bomboş kaldıysa varsayılan atama yap
                 if not clean_text:
                     clean_text = "fantasy landscape"
 
-                # Kelimeleri internet bağlantısına uygun güvenli URL formatına çeviriyoruz
+                # KESİN DÜZELTME: Link kırılmalarını önlemek için parametreleri dict (sözlük) yapısında güvenli topluyoruz
+                params = {
+                    "width": "1024",
+                    "height": "1024",
+                    "model": "flux",
+                    "nologo": "true"
+                }
+                query_string = urllib.parse.urlencode(params)
+                
+                # Sabit ve kırılması imkansız ayrı bloklar halinde url oluşturma
                 encoded_prompt = urllib.parse.quote(clean_text)
+                image_url = f"https://pollinations.ai{encoded_prompt}?{query_string}"
                 
-                # KESİN DÜZELTME: Resmi ve kırılmaz tek satırlık Pollinations API şablonu
-                image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&model=flux&nologo=true"
-                logger.info(f"🔒 DIRECT FAILSAFE URL: {image_url}")
+                logger.info(f"🔒 SECURE IMMUTABLE URL: {image_url}")
                 
-                # Asenkron veri indirme motoru (aiohttp) ile resmi belleğe alıyoruz
                 async with aiohttp.ClientSession() as session:
                     async with session.get(image_url, timeout=20) as response:
                         if response.status == 200:
                             img_data = await response.read()
-                            # Gri kutu kalkanı: Dosya boyutu 5000 bayttan büyükse gerçek resimdir
                             if len(img_data) > 5000:
                                 image_file = nextcord.File(io.BytesIO(img_data), filename="generated_image.png")
                                 await message.reply(content=f"🎨 Here is your **100% free** generated image for: *\"{clean_text}\"*:", file=image_file)
@@ -125,8 +122,6 @@ async def on_message(message):
                                 await message.reply("⚠️ Resim motoru bu promptu çizemedi. Lütfen daha detaylı bir İngilizce açıklama yazın.")
                         else:
                             await message.reply(f"⚠️ Resim motoru hata döndürdü (Kod: {response.status}), lütfen az sonra tekrar deneyin.")
-                
-                # Resim pipeline'ı başarıyla sonlandığı için fonksiyonu burada kes, metin kodlarına geçme!
                 return
 
             except Exception as e:
@@ -134,15 +129,13 @@ async def on_message(message):
                 await message.reply(f"**⚠️ Resim oluşturulurken bir hata oluştu! Detay: {e}**")
                 return
 
-        # ─── HAFIZALI STANDART METİN TAMAMLAMA SİSTEMİ (YALNIZ SOHBET İSTEKLERİ İÇİN) ───
+        # ─── HAFIZALI STANDART METİN TAMAMLAMA SİSTEMİ ───
         try:
             if user_id not in USER_MEMORY:
                 USER_MEMORY[user_id] = []
 
-            # Kullanıcının mesajını hafıza geçmişine ekle
             USER_MEMORY[user_id].append({"role": "user", "content": prompt})
 
-            # OpenAI paket hiyerarşisi oluşturma
             messages_payload = [
                 { 
                     "role": "system", 
@@ -150,7 +143,6 @@ async def on_message(message):
                 }
             ]
             
-            # Sistem talimatının ardına kullanıcının geçmiş sohbetini bağla
             messages_payload.extend(USER_MEMORY[user_id])
 
             response = client_ai.chat.completions.create(
@@ -161,18 +153,15 @@ async def on_message(message):
                 temperature=0.7,
                 messages=messages_payload
             )
-            response_text = response.choices[0].message.content
+            response_text = response.choices.message.content
             
-            # Yapay zekanın cevabını bir sonraki mesaja kadar hafızaya kaydet
             USER_MEMORY[user_id].append({"role": "assistant", "content": response_text})
 
-            # Hafıza havuzunu cüzdanı korumak adına son 10 mesajla sınırla (Kırp)
             if len(USER_MEMORY[user_id]) > MAX_MEMORY_LIMIT:
                 USER_MEMORY[user_id] = USER_MEMORY[user_id][-MAX_MEMORY_LIMIT:]
             
             logger.info(f"📊 [OpenAI Usage Tracker] -> {response.usage}")
 
-            # Davet Linki Ayarlarını config.yml üzerinden çek
             invite_link = "https://discord.com"
             if os.path.exists('config.yml'):
                 try:
@@ -185,7 +174,6 @@ async def on_message(message):
 
             response_text = response_text.replace('#INVITE#', invite_link)
             
-            # Metin uzunluğu 2000 karakterden fazlaysa Discord çökmesini önlemek için parçalara böl
             if not response_text.startswith('#NORESPOND'):
                 if len(response_text) > 2000:
                     chunks = [response_text[i:i+1900] for i in range(0, len(response_text), 1900)]
@@ -202,7 +190,7 @@ async def on_message(message):
         end_time = int(time.time() * 1000)
         logger.success(f'Responded to a prompt in {end_time - start_time}ms!')
 
-# Slash komut yapısı (Discord 3 Saniye zaman aşımı engelleyici entegreli)
+# Slash komut fonksiyonu
 @client.slash_command(name='set_channel', description='Set the channel where the client listens for messages')
 async def set_channel(ctx, channel: nextcord.TextChannel):
     await ctx.response.defer(ephemeral=True)
