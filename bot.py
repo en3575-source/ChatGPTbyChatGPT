@@ -38,7 +38,6 @@ intents.message_content = True
 client = nextcord.Client(intents=intents)
 
 # --- AKILLI VE EKONOMİK HAFIZA SİSTEMİ ALTYAPISI ---
-# Yapısı: { user_id: [ {"role": "user", "content": "..."}, {"role": "assistant", "content": "..."} ] }
 USER_MEMORY = {}
 MAX_MEMORY_LIMIT = 10  # Hafızada tutulacak maksimum mesaj sınırı (Prompt Caching ile %90 indirimli)
 
@@ -68,7 +67,7 @@ async def on_ready():
 async def on_message(message):
     global USER_MEMORY
     
-    # 1. IMMEDIATE FILTER: Completely ignore any message sent by a bot account (prevents duplicate loops)
+    # 1. IMMEDIATE FILTER: Completely ignore any message sent by a bot account
     if message.author.bot:
         return
 
@@ -92,20 +91,20 @@ async def on_message(message):
         image_file = None
 
         try:
-            # DEĞİŞTİRİLEN KISIM: Tetikleyici kelimeler esnetilerek Türkçe karakter hataları engellendi
+            # Tetikleyici kelimeler esnetilerek Türkçe karakter hataları engellendi
             image_keywords = ["draw", "paint", "image", "picture", "resim", "ciz", "çiz", "görsel", "gorsel"]
             is_image_request = any(keyword in prompt.lower() for keyword in image_keywords)
 
             if is_image_request:
                 logger.info("Executing image generation pipeline...")
-                # En ucuz resim modeli (gpt-image-1-mini) ve tasarruflu çözünürlük (1024x1024)
+                # KESİN DÜZELTME: response_format="url" eklenerek OpenAI'ın boş dönmesi ve çökmesi engellendi
                 image_response = client_ai.images.generate(
                     model="gpt-image-1-mini",  
                     prompt=prompt,
                     n=1,
-                    size="1024x1024"
+                    size="1024x1024",
+                    response_format="url"
                 )
-                # DÜZELTME: OpenAI modern kütüphane standartlarına göre nesne yapısı eşitlendi
                 image_url = image_response.data[0].url
                 
                 # Download it natively into memory to upload directly to Discord
@@ -134,7 +133,7 @@ async def on_message(message):
                     max_completion_tokens=1900,
                     n=1,
                     stop=None,
-                    temperature=0.7,  # Hafızalı sohbette daha tutarlı cevaplar için 0.7 idealdir
+                    temperature=0.7,
                     messages=messages_payload
                 )
                 response_text = response.choices[0].message.content
@@ -178,7 +177,7 @@ async def on_message(message):
         end_time = int(time.time() * 1000)
         logger.success(f'Responded to a prompt in {end_time - start_time}ms!')
 
-# DÜZELTME: Yarım kalan Slash komut fonksiyonu tamamen kapatıldı ve tamamlandı
+# Slash komut fonksiyonu eksiksiz olarak korundu
 @client.slash_command(name='set_channel', description='Set the channel where the client listens for messages')
 async def set_channel(ctx, channel: nextcord.TextChannel):
     await ctx.response.defer(ephemeral=True)
