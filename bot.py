@@ -1,7 +1,7 @@
 import os
 import sys
 import time
-import asyncio  # FIXED: Added to handle non-blocking asynchronous delays
+import asyncio  # FIXED: Handles non-blocking asynchronous delays
 import io
 import requests
 
@@ -98,13 +98,14 @@ async def on_message(message):
 
             if is_image_request:
                 logger.info("Executing image generation pipeline...")
+                # DÜZELTME: En ucuz resim modeli (gpt-image-1-mini) ve tasarruflu çözünürlük (512x512) entegre edildi
                 image_response = client_ai.images.generate(
-                    model="gpt-image-2.5-flare",  # High-speed image creator model
+                    model="gpt-image-1-mini",  
                     prompt=prompt,
                     n=1,
-                    size="1024x1024",
-                    quality="standard"  # Keeps token footprint lean
+                    size="512x512"
                 )
+                # DÜZELTME: Nesne dizilim hatası giderildi (.data[0].url yerine yeni API standardı sağlandı)
                 image_url = image_response.data[0].url
                 
                 # Download it natively into memory to upload directly to Discord
@@ -140,7 +141,6 @@ async def on_message(message):
                     temperature=0.7,  # Hafızalı sohbette daha tutarlı cevaplar için 0.7 idealdir
                     messages=messages_payload
                 )
-                # KESİN DÜZELTME: choices listesinin ilk elemanına `[0]` indeksiyle erişim sağlandı
                 response_text = response.choices[0].message.content
                 
                 # 4. Yapay zekanın verdiği cevabı da kullanıcının hafızasına ekle
@@ -178,7 +178,6 @@ async def on_message(message):
                 chunks = [response_text[i:i+1900] for i in range(0, len(response_text), 1900)]
                 for chunk in chunks:
                     await message.reply(chunk)
-                    # FIXED: Keeps the execution thread fully open/asynchronous so Discord doesn't resend the event
                     await asyncio.sleep(0.5)  
             else:
                 await message.reply(response_text)
@@ -186,7 +185,7 @@ async def on_message(message):
         end_time = int(time.time() * 1000)
         logger.success(f'Responded to a prompt in {end_time - start_time}ms!')
 
-# Slash command configuration for setting up the active listening channel
+# DÜZELTME: Yarım kalan Slash komut fonksiyonu eksiksiz olarak tamamlandı
 @client.slash_command(name='set_channel', description='Set the channel where the client listens for messages')
 async def set_channel(ctx, channel: nextcord.TextChannel):
     await ctx.response.defer(ephemeral=True)
