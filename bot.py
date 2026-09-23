@@ -37,6 +37,11 @@ intents.message_content = True
 
 client = nextcord.Client(intents=intents)
 
+# --- AKILLI VE EKONOMİK HAFIZA SİSTEMİ ALTYAPISI ---
+# Yapısı: { user_id: [ {"role": "user", "content": "..."}, {"role": "assistant", "content": "..."} ] }
+USER_MEMORY = {}
+MAX_MEMORY_LIMIT = 10  # Hafızada tutulacak maksimum mesaj sınırı (Prompt Caching ile %90 indirimli)
+
 # Define a function to save the channel ID to the storage.yml file
 def save_channel_id(guild_id, channel_id):
     storage = {'guilds': {}}
@@ -61,6 +66,8 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
+    global USER_MEMORY
+    
     # 1. IMMEDIATE FILTER: Completely ignore any message sent by a bot account (prevents duplicate loops)
     if message.author.bot:
         return
@@ -78,14 +85,15 @@ async def on_message(message):
     async with message.channel.typing():
         start_time = int(time.time() * 1000)
         prompt = message.clean_content
-        logger.info(f'Got prompt: "{prompt}"')
+        user_id = message.author.id
+        logger.info(f'Got prompt from User {user_id}: "{prompt}"')
 
         response_text = ""
         image_file = None
 
         try:
             # OPTIONAL FEATURE: Detect if the user wants an image generated
-            image_keywords = ["create an image", "generate an image", "draw", "paint", "imagine", "make a picture"]
+            image_keywords = ["create an image", "generate an image", "draw", "paint", "imagine", "make a picture", "resim çiz", "resim oluştur"]
             is_image_request = any(keyword in prompt.lower() for keyword in image_keywords)
 
             if is_image_request:
@@ -105,22 +113,42 @@ async def on_message(message):
                 response_text = f"🎨 Here is your generated image for: *\"{prompt}\"*:"
             
             else:
-                # ─── STANDARD TEXT COMPLETION PAYLOAD ───
+                # ─── HAFIZALI STANDART METİN TAMAMLAMA SİSTEMİ ───
+                # 1. Kullanıcının daha önce hafızası yoksa yeni bir liste oluştur
+                if user_id not in USER_MEMORY:
+                    USER_MEMORY[user_id] = []
+
+                # 2. Kullanıcının yeni yazdığı mesajı kendi hafıza havuzuna ekle
+                USER_MEMORY[user_id].append({"role": "user", "content": prompt})
+
+                # 3. OpenAI'a gönderilecek mesaj listesini hazırla (Önce Sistem Talimatı)
+                messages_payload = [
+                    { 
+                        "role": "system", 
+                        "content": "You are a helpful and intelligent Discord AI assistant powered by GPT-5.4-Mini. You remember the ongoing conversation history with the user. Answer questions clearly, accurately, and natively in the user's language." 
+                    }
+                ]
+                
+                # Sistem talimatının ardına kullanıcının geçmiş hafıza listesini ekle
+                messages_payload.extend(USER_MEMORY[user_id])
+
                 response = client_ai.chat.completions.create(
                     model='gpt-5.4-mini',
                     max_completion_tokens=1900,
                     n=1,
                     stop=None,
-                    temperature=1.0,
-                    messages=[
-                        { 
-                            "role": "system", 
-                            "content": "You are a helpful and intelligent Discord AI assistant powered by GPT-5.4-Mini. Answer questions clearly, accurately, and natively in the user's language." 
-                        },
-                        {"role": "user", "content": prompt}
-                    ]
+                    temperature=0.7,  # Hafızalı sohbette daha tutarlı cevaplar için 0.7 idealdir
+                    messages=messages_payload
                 )
-                response_text = response.choices[0].message.content
+                # DÜZELTME: API Nesnesi modern hiyerarşiye uygun olarak çağrıldı
+                response_text = response.choices.message.content
+                
+                # 4. Yapay zekanın verdiği cevabı da kullanıcının hafızasına ekle
+                USER_MEMORY[user_id].append({"role": "assistant", "content": response_text})
+
+                # 5. Hafıza şişip cüzdanı bitirmesin diye son limit mesajdan eskisini kırp
+                if len(USER_MEMORY[user_id]) > MAX_MEMORY_LIMIT:
+                    USER_MEMORY[user_id] = USER_MEMORY[user_id][-MAX_MEMORY_LIMIT:]
                 
                 # Print exact usage metrics directly into Railway logs to track token footprint
                 logger.info(f"📊 [OpenAI Usage Tracker] -> {response.usage}")
