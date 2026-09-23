@@ -81,52 +81,40 @@ async def on_message(message):
         image_keywords = ["draw", "paint", "image", "picture", "resim", "ciz", "çiz", "görsel", "gorsel"]
         is_image_request = any(keyword in prompt.lower() for keyword in image_keywords)
 
-        if is_image_request:
-            logger.info("Executing isolated Pollinations AI free image pipeline...")
-            try:
-                # ─── 1. AŞAMA: SADECE SAF METNİ KENDİ İÇİNDE TEMİZLE ───
-                # Kesinlikle linke veya domain adına dokunmadan sadece prompt verisini ayıklıyoruz
-                clean_text = prompt.lower()
-                clean_text = clean_text.replace(f"@{client.user.name.lower()}", "")
-                
-                # Sadece kullanıcının cümlesindeki tetikleyicileri siliyoruz
-                for keyword in image_keywords:
-                    clean_text = clean_text.replace(keyword, "")
-                
-                clean_text = clean_text.replace(":", "").strip()
-                
-                if not clean_text:
-                    clean_text = "fantasy landscape"
+       if is_image_request:
+    logger.info("Executing isolated Pollinations AI free image pipeline...")
+    try:
+        # Sadece kullanıcının metnini temizliyoruz
+        clean_text = prompt.lower()
+        clean_text = clean_text.replace(f"@{client.user.name.lower()}", "")
+        
+        for keyword in image_keywords:
+            clean_text = clean_text.replace(keyword, "")
+        
+        clean_text = clean_text.replace(":", "").strip()
+        
+        if not clean_text:
+            clean_text = "fantasy landscape"
 
-                # Saf temizlenmiş açıklamayı internet formatına çeviriyoruz
-                encoded_prompt = urllib.parse.quote(clean_text)
-                
-                # ─── 2. AŞAMA: DOMAIN ADRESİNİ TAMAMEN BAĞIMSIZ SABİTLE ───
-                # KESİN DÜZELTME: Domain string yapısı döngülerden tamamen izole edildi, artık .ai parçalanamaz!
-                target_host = "https://pollinations.ai"
-                target_path = f"/p/{encoded_prompt}?width=1024&height=1024&model=flux&nologo=true"
-                
-                # İki bağımsız bloğu kırılma riski olmadan birleştiriyoruz
-                image_url = target_host + target_path
-                logger.info(f"🔒 ULTIMATE FAILSAFE URL: {image_url}")
-                
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(image_url, timeout=20) as response:
-                        if response.status == 200:
-                            img_data = await response.read()
-                            if len(img_data) > 5000:
-                                image_file = nextcord.File(io.BytesIO(img_data), filename="generated_image.png")
-                                await message.reply(content=f"🎨 Here is your **100% free** generated image for: *\"{clean_text}\"*:", file=image_file)
-                            else:
-                                await message.reply("⚠️ Resim motoru bu promptu çizemedi. Lütfen daha detaylı bir İngilizce açıklama yazın.")
-                        else:
-                            await message.reply("⚠️ Ücretsiz resim motoru şu an yoğun, lütfen az sonra tekrar deneyin.")
-                return
-                
-            except Exception as e:
-                logger.error(f"Resim Pipeline Hatasi: {e}")
-                await message.reply(f"**⚠️ Resim oluşturulurken bir hata oluştu! Detay: {e}**")
-                return
+        # Saf açıklamayı internet formatına çeviriyoruz
+        encoded_prompt = urllib.parse.quote(clean_text)
+        
+        # KESİN DÜZELTME: Domain ve path ayrımı kaldırıldı, resmi çalışan tek bir URL şablonu çakıldı!
+        image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&model=flux&nologo=true"
+        logger.info(f"🔒 DIRECT FAILSAFE URL: {image_url}")
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(image_url, timeout=20) as response:
+                if response.status == 200:
+                    img_data = await response.read()
+                    if len(img_data) > 5000:
+                        image_file = nextcord.File(io.BytesIO(img_data), filename="generated_image.png")
+                        await message.reply(content=f"🎨 Here is your **100% free** generated image for: *\"{clean_text}\"*:", file=image_file)
+                    else:
+                        await message.reply("⚠️ Resim motoru bu promptu çizemedi. Lütfen daha detaylı bir İngilizce açıklama yazın.")
+                else:
+                    await message.reply(f"⚠️ Resim motoru hata döndürdü (Kod: {response.status}), lütfen az sonra tekrar deneyin.")
+        return
 
         # ─── HAFIZALI STANDART METİN TAMAMLAMA SİSTEMİ ───
         try:
