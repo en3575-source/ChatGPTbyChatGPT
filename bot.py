@@ -4,7 +4,6 @@ import time
 import asyncio
 import io
 import aiohttp
-import urllib.parse
 
 import nextcord
 from nextcord.ext import commands
@@ -28,9 +27,8 @@ def run_flask():
 # Sahte web sunucusunu botla aynı anda arka planda başlatır
 threading.Thread(target=run_flask).start()
 
-# API İstemci ve Key Kurulumları
+# API İstemci Kurulumu (Resmi OpenAI v1.0.0+ Standart)
 client_ai = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-HF_API_KEY = os.environ.get("HUGGINGFACE_API_KEY")
 
 intents = nextcord.Intents.default()
 intents.guild_messages = True
@@ -86,7 +84,7 @@ async def on_message(message):
         is_image_request = any(keyword in prompt.lower() for keyword in image_keywords)
 
         if is_image_request:
-            logger.info("Executing official Hugging Face image pipeline...")
+            logger.info("Executing official OpenAI DALL-E 3 image pipeline...")
             try:
                 # Kullanıcının metnini küçük harfe çevirip komut kelimelerini ayıklıyoruz
                 clean_text = prompt.lower()
@@ -96,28 +94,33 @@ async def on_message(message):
                 clean_text = clean_text.replace(":", "").strip()
                 
                 if not clean_text:
-                    clean_text = "a beautiful fantasy landscape"
+                    clean_text = "fantasy landscape"
 
-                # 403 engellerine takılmayan, doğrudan açık istek kabul eden kararlı resmi model
-                API_URL = "https://huggingface.co"
-                headers = {"Authorization": f"Bearer {HF_API_KEY}"}
-                payload = {"inputs": clean_text}
-
+                # KESİN DÜZELTME: En ucuz resmi DALL-E 3 bağlantısı kuruldu
+                image_response = client_ai.images.generate(
+                    model="dall-e-3",
+                    prompt=clean_text,
+                    n=1,
+                    size="1024x1024",
+                    quality="standard"  # Ekonomi modu: Görsel başına net 4 sent harcar
+                )
+                
+                # Resmi API çıktısından güvenli indeksleme ile okuyoruz
+                image_url = image_response.data[0].url
+                
+                # Resmi bellek üzerinden asenkron indirip Discord'a transfer ediyoruz
                 async with aiohttp.ClientSession() as session:
-                    async with session.post(API_URL, headers=headers, json=payload, timeout=30) as response:
+                    async with session.get(image_url, timeout=20) as response:
                         if response.status == 200:
                             img_data = await response.read()
                             image_file = nextcord.File(io.BytesIO(img_data), filename="generated_image.png")
-                            await message.reply(content=f"🎨 Here is your **100% free (Hugging Face)** image for: *\"{clean_text}\"*:", file=image_file)
-                        elif response.status == 503:
-                            # Model uyku modundaysa sunucunun yüklenmesi 10-15 saniye sürebilir
-                            await message.reply("⏳ Yapay zeka modeli sunucuda şu an ilk kez ayağa kaldırılıyor, lütfen 15 saniye sonra tekrar aynı komutu yazın!")
+                            await message.reply(content=f"🎨 Here is your **DALL-E 3** image for: *\"{clean_text}\"*:", file=image_file)
                         else:
-                            await message.reply(f"⚠️ Resim sunucusu geçici bir hata verdi (Kod: {response.status}).")
+                            await message.reply("⚠️ Görsel Discord'a yüklenirken geçici bir sorun oluştu.")
                 return
 
             except Exception as e:
-                logger.error(f"Hugging Face Pipeline Hatasi: {e}")
+                logger.error(f"DALL-E 3 Pipeline Hatasi: {e}")
                 await message.reply(f"**⚠️ Resim oluşturulurken bir hata oluştu! Detay: {e}**")
                 return
 
@@ -145,7 +148,6 @@ async def on_message(message):
                 temperature=0.7,
                 messages=messages_payload
             )
-            # KESİN DÜZELTME: choices listesinin ilk elemanına `[0]` indeksi doğru şekilde eklendi
             response_text = response.choices[0].message.content
             
             USER_MEMORY[user_id].append({"role": "assistant", "content": response_text})
