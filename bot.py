@@ -27,7 +27,9 @@ def run_flask():
 
 threading.Thread(target=run_flask).start()
 
+# OpenAI ve Hugging Face Kurulumları
 client_ai = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+HF_API_KEY = os.environ.get("HUGGINGFACE_API_KEY")
 
 intents = nextcord.Intents.default()
 intents.guild_messages = True
@@ -82,44 +84,38 @@ async def on_message(message):
         is_image_request = any(keyword in prompt.lower() for keyword in image_keywords)
 
         if is_image_request:
-            logger.info("Executing failsafe Pollinations AI free image pipeline...")
+            logger.info("Executing official Hugging Face SDXL image pipeline...")
             try:
-                # ─── 1. AŞAMA: PROMPTU TEMİZLE ───
+                # Kullanıcının metnini temizliyoruz
                 clean_text = prompt.lower()
                 clean_text = clean_text.replace(f"@{client.user.name.lower()}", "")
-                
-                for word_to_remove in ["draw ", "paint ", "image ", "picture ", "resim ", "ciz ", "çiz ", "görsel ", "gorsel "]:
-                    clean_text = clean_text.replace(word_to_remove, "")
-                
-                clean_text = clean_text.replace("draw", "").replace("resim", "").replace("çiz", "").replace("ciz", "")
+                for keyword in image_keywords:
+                    clean_text = clean_text.replace(keyword, "")
                 clean_text = clean_text.replace(":", "").strip()
                 
-                if not clean_text or len(clean_text) < 2:
-                    clean_text = "fantasy landscape"
+                if not clean_text:
+                    clean_text = "a beautiful fantasy landscape"
 
-                # ─── 2. AŞAMA: KATILIK GARANTİLİ LINK ŞABLONU ───
-                # KESİN DÜZELTME: urljoin fonksiyonu çöpe atıldı. 
-                # Ana API endpoint adresi ve gerekli alt klasör (/p/) dünyadaki hiçbir kütüphanenin bozamayacağı şekilde düz metin olarak çakıldı!
-                encoded_prompt = urllib.parse.quote(clean_text)
-                image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&model=flux&nologo=true"
-                
-                logger.info(f"🔒 ABSOLUTE FIXED URL: {image_url}")
-                
+                # KESİN DÜZELTME: Dünyanın en stabil açık kaynaklı resim modeli olan SDXL API hattı kuruldu
+                API_URL = "https://huggingface.co"
+                headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+                payload = {"inputs": clean_text}
+
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(image_url, timeout=20) as response:
+                    async with session.post(API_URL, headers=headers, json=payload, timeout=30) as response:
                         if response.status == 200:
                             img_data = await response.read()
-                            if len(img_data) > 5000:
-                                image_file = nextcord.File(io.BytesIO(img_data), filename="generated_image.png")
-                                await message.reply(content=f"🎨 Here is your **100% free** generated image for: *\"{clean_text}\"*:", file=image_file)
-                            else:
-                                await message.reply("⚠️ Resim motoru bu promptu şu an çizemedi. Lütfen az sonra tekrar deneyin.")
+                            image_file = nextcord.File(io.BytesIO(img_data), filename="generated_image.png")
+                            await message.reply(content=f"🎨 Here is your **100% free (Hugging Face SDXL)** image for: *\"{clean_text}\"*:", file=image_file)
+                        elif response.status == 503:
+                            # Model ilk kez açılıyorsa sunucunun yüklenmesi 10-15 saniye sürebilir
+                            await message.reply("⏳ Yapay zeka modeli sunucuda şu an ilk kez ayağa kaldırılıyor, lütfen 15 saniye sonra tekrar aynı komutu yazın!")
                         else:
-                            await message.reply(f"⚠️ Resim motoru hata döndürdü (Kod: {response.status}), lütfen az sonra tekrar deneyin.")
+                            await message.reply(f"⚠️ Resim sunucusu geçici bir hata verdi (Kod: {response.status}).")
                 return
 
             except Exception as e:
-                logger.error(f"Resim Pipeline Hatasi: {e}")
+                logger.error(f"Hugging Face Pipeline Hatasi: {e}")
                 await message.reply(f"**⚠️ Resim oluşturulurken bir hata oluştu! Detay: {e}**")
                 return
 
