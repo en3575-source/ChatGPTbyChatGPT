@@ -97,14 +97,14 @@ async def on_message(message):
 
             if is_image_request:
                 logger.info("Executing image generation pipeline...")
-                # KESİN DÜZELTME: response_format="url" eklenerek OpenAI'ın boş dönmesi ve çökmesi engellendi
+                # KESİN DÜZELTME: Hataya neden olan response_format kaldırıldı, model ham yapısında çalışacak
                 image_response = client_ai.images.generate(
                     model="gpt-image-1-mini",  
                     prompt=prompt,
                     n=1,
-                    size="1024x1024",
-                    response_format="url"
+                    size="1024x1024"
                 )
+                # KESİN DÜZELTME: Gelen listenin ilk elemanına `[0]` indeksiyle doğru şekilde erişildi
                 image_url = image_response.data[0].url
                 
                 # Download it natively into memory to upload directly to Discord
