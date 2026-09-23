@@ -84,7 +84,7 @@ async def on_message(message):
         is_image_request = any(keyword in prompt.lower() for keyword in image_keywords)
 
         if is_image_request:
-            logger.info("Executing official OpenAI DALL-E 3 image pipeline...")
+            logger.info("Executing official OpenAI modern image pipeline...")
             try:
                 # Kullanıcının metnini küçük harfe çevirip komut kelimelerini ayıklıyoruz
                 clean_text = prompt.lower()
@@ -96,16 +96,15 @@ async def on_message(message):
                 if not clean_text:
                     clean_text = "fantasy landscape"
 
-                # KESİN DÜZELTME: Tier 1 hesaplar için resmi DALL-E 3 parametreleri kilitlendi
+                # KESİN DÜZELTME: Sizin panelinizdeki en ucuz resmi OpenAI model ismi tam olarak entegre edildi!
                 image_response = client_ai.images.generate(
-                    model="dall-e-3",
+                    model="gpt-image-1-mini",
                     prompt=clean_text,
                     n=1,
-                    size="1024x1024",
-                    quality="standard"
+                    size="1024x1024"
                 )
                 
-                # KESİN DÜZELTME: Listenin ilk elemanına `[0]` indeksi eklenerek nesne hiyerarşisi tam standarda getirildi!
+                # KESİN DÜZELTME: Listenin ilk elemanına doğru indeks yapısıyla erişim sağlandı
                 image_url = image_response.data[0].url
                 
                 # Resmi bellek üzerinden asenkron indirip Discord'a transfer ediyoruz
@@ -114,13 +113,13 @@ async def on_message(message):
                         if response.status == 200:
                             img_data = await response.read()
                             image_file = nextcord.File(io.BytesIO(img_data), filename="generated_image.png")
-                            await message.reply(content=f"🎨 Here is your **DALL-E 3** image for: *\"{clean_text}\"*:", file=image_file)
+                            await message.reply(content=f"🎨 Here is your image for: *\"{clean_text}\"*:", file=image_file)
                         else:
                             await message.reply("⚠️ Görsel Discord'a yüklenirken geçici bir sorun oluştu.")
                 return
 
             except Exception as e:
-                logger.error(f"DALL-E 3 Pipeline Hatasi: {e}")
+                logger.error(f"Image Pipeline Hatasi: {e}")
                 await message.reply(f"**⚠️ Resim oluşturulurken bir hata oluştu! Detay: {e}**")
                 return
 
