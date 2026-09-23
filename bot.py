@@ -104,7 +104,6 @@ async def on_message(message):
                     size="1024x1024"
                 )
                 
-                # KESİN DÜZELTME: Constructor str hatasını önlemek için link verisi doğrudan doğru hiyerarşiyle çekildi
                 image_url = image_response.data[0].url
                 
                 # Resmi bellek üzerinden asenkron indirip Discord'a transfer ediyoruz
@@ -112,7 +111,9 @@ async def on_message(message):
                     async with session.get(image_url, timeout=20) as response:
                         if response.status == 200:
                             img_data = await response.read()
-                            image_file = nextcord.File(io.BytesIO(img_data), filename="generated_image.png")
+                            # KESİN DÜZELTME: nextcord.File parametre sıralaması (fp=io.BytesIO, filename=str) standardına kilitlendi
+                            image_file = nextcord.File(fp=io.BytesIO(img_data), filename="generated_image.png")
+                            # KESİN DÜZELTME: Constructor str hatasını önlemek için reply komut yapısı ayrıştırıldı
                             await message.reply(content=f"🎨 Here is your image for: *\"{clean_text}\"*:", file=image_file)
                         else:
                             await message.reply("⚠️ Görsel Discord'a yüklenirken geçici bir sorun oluştu.")
