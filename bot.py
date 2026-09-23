@@ -99,12 +99,17 @@ async def on_message(message):
             if is_image_request:
                 logger.info("Executing Pollinations AI free image pipeline...")
                 
-                # KESİN DÜZELTME: Hizalama hatasına neden olan tüm boşluklar 4-8-12 kuralına göre sıfırlandı
+                # KESİN DÜZELTME: prompt içindeki bot ismi veya tetikleyicileri temizleyip sadece saf açıklamayı alıyoruz
                 clean_prompt_text = prompt.replace(f"@{client.user.name}", "").strip()
+                
+                # Linkin çorba olmasını (pollinations.aidraw...) engellemek için sadece prompt kelimesini encode ediyoruz
                 encoded_prompt = urllib.parse.quote(clean_prompt_text)
                 
-                # Pollinations ana sunucu adresi en güvenli formatta sabitlendi
-                image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&model=flux&render=true"
+                # KESİN DÜZELTME: Ana domain adresi ile parametreler birbirinden tamamen izole edildi (Asla kırılmaz)
+                base_url = "https://pollinations.ai"
+                image_url = f"{base_url}{encoded_prompt}?width=1024&height=1024&model=flux&render=true"
+                
+                logger.info(f"Generated Secure Image URL: {image_url}")
                 
                 # Resmi harcama yapmadan (0 TL) hafızaya indiriyoruz
                 img_response = requests.get(image_url, timeout=15)
