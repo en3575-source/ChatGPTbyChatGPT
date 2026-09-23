@@ -3,7 +3,7 @@ import sys
 import time
 import asyncio
 import io
-import requests
+import aiohttp
 import urllib.parse
 
 import nextcord
@@ -84,29 +84,39 @@ async def on_message(message):
         if is_image_request:
             logger.info("Executing isolated Pollinations AI free image pipeline...")
             try:
-                # Bot etiketlerini prompt içinden tamamen kazıyalım
-                clean_prompt_text = prompt.replace(f"@{client.user.name}", "").strip()
+                # KESİN DÜZELTME: prompt içindeki tüm komut/tetikleyici kelimeleri tamamen temizle
+                clean_prompt_text = prompt.lower()
+                clean_prompt_text = clean_prompt_text.replace(f"@{client.user.name.lower()}", "")
                 
-                # Sadece açıklama metnini internet uyumlu formata çeviriyoruz
+                # Listedeki tüm tetikleyicileri metinden kazıyalım
+                for keyword in image_keywords:
+                    clean_prompt_text = clean_prompt_text.replace(keyword, "")
+                
+                # Başta/sonda kalan gereksiz iki nokta üst üste veya boşlukları sil
+                clean_prompt_text = clean_prompt_text.replace(":", "").strip()
+                
+                # Eğer temizleme sonrası metin bomboş kaldıysa varsayılan bir şey ata
+                if not clean_prompt_text:
+                    clean_prompt_text = "cute cat"
+
+                # Sadece saf açıklamayı internet uyumlu formata çeviriyoruz
                 encoded_prompt = urllib.parse.quote(clean_prompt_text)
                 
-                # ASLA KIRILMAZ LINK MIMARISI: urljoin kullanarak pollinations.aidraw hatasını fiziksel olarak imkansız kılıyoruz
-                base_endpoint = "https://pollinations.ai"
-                image_url = urllib.parse.urljoin(base_endpoint, encoded_prompt)
+                # Tamamen yenilenmiş, nologo ve filtre korumalı link mimarisi
+                image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&model=flux&nologo=true"
+                logger.info(f"Failsafe Clean Image URL: {image_url}")
                 
-                # Parametreleri link sonuna güvenli ekleyelim
-                image_url += "?width=1024&height=1024&model=flux&render=true"
-                
-                logger.info(f"Failsafe Image URL: {image_url}")
-                
-                img_response = requests.get(image_url, timeout=15)
-                if img_response.status_code == 200:
-                    image_file = nextcord.File(io.BytesIO(img_response.content), filename="generated_image.png")
-                    await message.reply(content=f"🎨 Here is your **100% free** generated image for: *\"{prompt}\"*:", file=image_file)
-                else:
-                    await message.reply("⚠️ Ücretsiz resim motoru şu an yoğun, lütfen az sonra tekrar deneyin.")
-                
-                # Resim gönderildiyse mesaj döngüsünü kesin olarak bitir, alttaki kodlara geçme!
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(image_url, timeout=20) as response:
+                        if response.status == 200:
+                            img_data = await response.read()
+                            if len(img_data) > 5000:  # Hata resmi 3kb civarıdır, gerçek resimler çok daha büyüktür
+                                image_file = nextcord.File(io.BytesIO(img_data), filename="generated_image.png")
+                                await message.reply(content=f"🎨 Here is your **100% free** generated image for: *\"{clean_prompt_text}\"*:", file=image_file)
+                            else:
+                                await message.reply("⚠️ Resim motoru bu promptu çizemedi. Lütfen daha detaylı bir İngilizce açıklama yazın.")
+                        else:
+                            await message.reply("⚠️ Ücretsiz resim motoru şu an yoğun, lütfen az sonra tekrar deneyin.")
                 return
                 
             except Exception as e:
@@ -114,7 +124,7 @@ async def on_message(message):
                 await message.reply(f"**⚠️ Resim oluşturulurken bir hata oluştu! Detay: {e}**")
                 return
 
-        # ─── HAFIZALI STANDART METİN TAMAMLAMA SİSTEMİ (SADECE RESİM DEĞİLSE ÇALIŞIR) ───
+        # ─── HAFIZALI STANDART METİN TAMAMLAMA SİSTEMİ ───
         try:
             if user_id not in USER_MEMORY:
                 USER_MEMORY[user_id] = []
@@ -138,7 +148,7 @@ async def on_message(message):
                 temperature=0.7,
                 messages=messages_payload
             )
-            response_text = response.choices[0].message.content
+            response_text = response.choices.message.content
             
             USER_MEMORY[user_id].append({"role": "assistant", "content": response_text})
 
@@ -147,7 +157,6 @@ async def on_message(message):
             
             logger.info(f"📊 [OpenAI Usage Tracker] -> {response.usage}")
 
-            # Davet linki işlemlerini hallet
             invite_link = "https://discord.com"
             if os.path.exists('config.yml'):
                 try:
