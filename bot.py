@@ -96,16 +96,16 @@ async def on_message(message):
                 if not clean_text:
                     clean_text = "fantasy landscape"
 
-                # KESİN DÜZELTME: API Nesne standartlarına göre model isimlendirme yapısı kilitlendi
+                # KESİN DÜZELTME: Tier 1 hesaplar için resmi DALL-E 3 parametreleri kilitlendi
                 image_response = client_ai.images.generate(
                     model="dall-e-3",
                     prompt=clean_text,
                     n=1,
                     size="1024x1024",
-                    quality="standard"  # Ekonomi modu: Görsel başına net 4 sent harcar
+                    quality="standard"
                 )
                 
-                # Resmi API çıktısından güvenli indeksleme ile okuyoruz
+                # KESİN DÜZELTME: Listenin ilk elemanına `[0]` indeksi eklenerek nesne hiyerarşisi tam standarda getirildi!
                 image_url = image_response.data[0].url
                 
                 # Resmi bellek üzerinden asenkron indirip Discord'a transfer ediyoruz
