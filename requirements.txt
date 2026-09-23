@@ -5,3 +5,4 @@ python-dotenv==1.0.1
 logging42==0.0.8
 Flask==3.0.3
 audioop-lts
+setuptools
