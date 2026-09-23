@@ -4,6 +4,7 @@ import time
 import asyncio  # FIXED: Handles non-blocking asynchronous delays
 import io
 import requests
+import urllib.parse  # FIXED: Added to safely convert Turkish/Special characters in image prompts
 
 import nextcord
 from nextcord.ext import commands
@@ -96,21 +97,21 @@ async def on_message(message):
             is_image_request = any(keyword in prompt.lower() for keyword in image_keywords)
 
             if is_image_request:
-                logger.info("Executing image generation pipeline...")
-                # KESİN DÜZELTME: Hataya sebep olan 'response_format' parametresi tamamen kaldırıldı!
-                image_response = client_ai.images.generate(
-                    model="gpt-image-1-mini",  
-                    prompt=prompt,
-                    n=1,
-                    size="1024x1024"
-                )
-                # KESİN DÜZELTME: Doğru API listeleme standardı olan `.data[0].url` yapısı entegre edildi
-                image_url = image_response.data[0].url
+                logger.info("Executing Pollinations AI free image pipeline...")
                 
-                # Download it natively into memory to upload directly to Discord
-                img_data = requests.get(image_url).content
-                image_file = nextcord.File(io.BytesIO(img_data), filename="generated_image.png")
-                response_text = f"🎨 Here is your generated image for: *\"{prompt}\"*:"
+                # Kullanıcının yazdığı metni internet linkine uygun güvenli formata çeviriyoruz
+                encoded_prompt = urllib.parse.quote(prompt)
+                
+                # KESİN DÜZELTME: OpenAI DALL-E yerine %100 bedava olan Pollinations FLUX motoru bağlandı
+                image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&model=flux&nologo=true"
+                
+                # Resmi hafızaya indirip Discord'a yüklüyoruz (0 TL Harcama)
+                img_response = requests.get(image_url, timeout=15)
+                if img_response.status_code == 200:
+                    image_file = nextcord.File(io.BytesIO(img_response.content), filename="generated_image.png")
+                    response_text = f"🎨 Here is your **100% free** generated image for: *\"{prompt}\"*:"
+                else:
+                    response_text = "⚠️ Ücretsiz resim motoru şu an yoğun, lütfen az sonra tekrar deneyin."
             
             else:
                 # ─── HAFIZALI STANDART METİN TAMAMLAMA SİSTEMİ ───
@@ -146,8 +147,8 @@ async def on_message(message):
                 logger.info(f"📊 [OpenAI Usage Tracker] -> {response.usage}")
 
         except Exception as e:
-            logger.error(f"OpenAI API Hatasi: {e}")
-            response_text = f"**⚠️ OpenAI API Hatası! Detay: {e}**"
+            logger.error(f"Sistem Hatasi: {e}")
+            response_text = f"**⚠️ Bir hata oluştu! Detay: {e}**"
 
         # Resolve invite placeholders
         invite_link = "https://discord.com"
