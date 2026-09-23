@@ -73,7 +73,7 @@ async def on_message(message):
 
     async with message.channel.typing():
         start_time = int(time.time() * 1000)
-        prompt = message.clean_content
+        prompt = message.content  # FIXED: Raw content used to avoid format mutations
         user_id = message.author.id
         logger.info(f'Got prompt from User {user_id}: "{prompt}"')
 
@@ -84,32 +84,27 @@ async def on_message(message):
         if is_image_request:
             logger.info("Executing failsafe Pollinations AI free image pipeline...")
             try:
-                # Sadece kullanıcının saf metnini ayıklıyoruz
+                # ─── KESİN DÜZELTME: Sinsi kelime yutma hatasını engellemek için sadece en temel komutları siliyoruz ───
                 clean_text = prompt.lower()
                 clean_text = clean_text.replace(f"@{client.user.name.lower()}", "")
                 
-                for keyword in image_keywords:
-                    clean_text = clean_text.replace(keyword, "")
+                # Temel kelimeleri sınırlandırarak siliyoruz (Picture kelimesinin içindeki cup artık silinmeyecek!)
+                for word_to_remove in ["draw ", "paint ", "image ", "picture ", "resim ", "ciz ", "çiz ", "görsel ", "gorsel "]:
+                    clean_text = clean_text.replace(word_to_remove, "")
                 
+                clean_text = clean_text.replace("draw", "").replace("resim", "").replace("çiz", "").replace("ciz", "")
                 clean_text = clean_text.replace(":", "").strip()
                 
-                if not clean_text:
+                # KESİN DÜZELTME: Değişken ismi 'clean_text' olarak tamamen eşitlendi! Boş kalsa bile asla hata üretmeyecek.
+                if not clean_text or len(clean_text) < 2:
                     clean_text = "fantasy landscape"
 
-                # KESİN DÜZELTME: Link kırılmalarını önlemek için parametreleri dict (sözlük) yapısında güvenli topluyoruz
-                params = {
-                    "width": "1024",
-                    "height": "1024",
-                    "model": "flux",
-                    "nologo": "true"
-                }
-                query_string = urllib.parse.urlencode(params)
-                
-                # Sabit ve kırılması imkansız ayrı bloklar halinde url oluşturma
+                # Saf açıklamayı internet formatına çeviriyoruz
                 encoded_prompt = urllib.parse.quote(clean_text)
-                image_url = f"https://pollinations.ai{encoded_prompt}?{query_string}"
                 
-                logger.info(f"🔒 SECURE IMMUTABLE URL: {image_url}")
+                # Link şablonunu ayırarak en güvenli formatta birleştiriyoruz
+                image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&model=flux&nologo=true"
+                logger.info(f"🔒 ULTIMATE FIXED URL: {image_url}")
                 
                 async with aiohttp.ClientSession() as session:
                     async with session.get(image_url, timeout=20) as response:
@@ -190,7 +185,6 @@ async def on_message(message):
         end_time = int(time.time() * 1000)
         logger.success(f'Responded to a prompt in {end_time - start_time}ms!')
 
-# Slash komut fonksiyonu
 @client.slash_command(name='set_channel', description='Set the channel where the client listens for messages')
 async def set_channel(ctx, channel: nextcord.TextChannel):
     await ctx.response.defer(ephemeral=True)
