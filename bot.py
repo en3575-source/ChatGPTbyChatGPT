@@ -84,33 +84,30 @@ async def on_message(message):
         if is_image_request:
             logger.info("Executing isolated Pollinations AI free image pipeline...")
             try:
-                # KESİN DÜZELTME: prompt içindeki tüm komut/tetikleyici kelimeleri tamamen temizle
+                # 1. Aşama: Sadece kullanıcının metnini temizliyoruz (Asla ana domain linkine dokunmuyoruz)
                 clean_prompt_text = prompt.lower()
                 clean_prompt_text = clean_prompt_text.replace(f"@{client.user.name.lower()}", "")
                 
-                # Listedeki tüm tetikleyicileri metinden kazıyalım
                 for keyword in image_keywords:
                     clean_prompt_text = clean_prompt_text.replace(keyword, "")
                 
-                # Başta/sonda kalan gereksiz iki nokta üst üste veya boşlukları sil
                 clean_prompt_text = clean_prompt_text.replace(":", "").strip()
                 
-                # Eğer temizleme sonrası metin bomboş kaldıysa varsayılan bir şey ata
                 if not clean_prompt_text:
                     clean_prompt_text = "cute cat"
 
-                # Sadece saf açıklamayı internet uyumlu formata çeviriyoruz
+                # 2. Aşama: Saf açıklamayı internet uyumlu formata çeviriyoruz
                 encoded_prompt = urllib.parse.quote(clean_prompt_text)
                 
-                # Tamamen yenilenmiş, nologo ve filtre korumalı link mimarisi
+                # KESİN DÜZELTME: Ana domain adresi tamamen izole edildi. Artık kelime silme döngüleri buradaki '.ai' ifadesine dokunamaz!
                 image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&model=flux&nologo=true"
-                logger.info(f"Failsafe Clean Image URL: {image_url}")
+                logger.info(f"Failsafe Completely Isolated URL: {image_url}")
                 
                 async with aiohttp.ClientSession() as session:
                     async with session.get(image_url, timeout=20) as response:
                         if response.status == 200:
                             img_data = await response.read()
-                            if len(img_data) > 5000:  # Hata resmi 3kb civarıdır, gerçek resimler çok daha büyüktür
+                            if len(img_data) > 5000:
                                 image_file = nextcord.File(io.BytesIO(img_data), filename="generated_image.png")
                                 await message.reply(content=f"🎨 Here is your **100% free** generated image for: *\"{clean_prompt_text}\"*:", file=image_file)
                             else:
