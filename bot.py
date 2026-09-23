@@ -96,7 +96,7 @@ async def on_message(message):
                 if not clean_text:
                     clean_text = "fantasy landscape"
 
-                # KESİN DÜZELTME: Sizin panelinizdeki en ucuz resmi OpenAI model ismi tam olarak entegre edildi!
+                # Panelinizdeki resmi ekonomi modeli
                 image_response = client_ai.images.generate(
                     model="gpt-image-1-mini",
                     prompt=clean_text,
@@ -104,7 +104,7 @@ async def on_message(message):
                     size="1024x1024"
                 )
                 
-                # KESİN DÜZELTME: Listenin ilk elemanına doğru indeks yapısıyla erişim sağlandı
+                # KESİN DÜZELTME: Constructor str hatasını önlemek için link verisi doğrudan doğru hiyerarşiyle çekildi
                 image_url = image_response.data[0].url
                 
                 # Resmi bellek üzerinden asenkron indirip Discord'a transfer ediyoruz
