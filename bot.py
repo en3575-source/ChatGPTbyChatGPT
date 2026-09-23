@@ -3,7 +3,7 @@ import sys
 import time
 import asyncio
 import io
-import aiohttp
+import urllib.parse
 
 import nextcord
 from nextcord.ext import commands
@@ -96,7 +96,7 @@ async def on_message(message):
                 if not clean_text:
                     clean_text = "fantasy landscape"
 
-                # Ekran görüntünüzdeki resmi ekonomi modeli
+                # Panelinizdeki resmi ekonomi modeli
                 image_response = client_ai.images.generate(
                     model="gpt-image-1-mini",
                     prompt=clean_text,
@@ -104,22 +104,21 @@ async def on_message(message):
                     size="1024x1024"
                 )
                 
+                # OpenAI'dan gelen güvenli internet linki
                 image_url = image_response.data[0].url
                 
-                # Resmi bellek üzerinden asenkron indirip Discord'a transfer ediyoruz
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(image_url, timeout=20) as response:
-                        if response.status == 200:
-                            img_data = await response.read()
-                            
-                            # KESİN DÜZELTME: "Constructor parameter should be str" hatasını bitirmek için
-                            # ham veriyi io.BytesIO paketine sarıp Nextcord'un aradığı saf binary dosyasına dönüştürüyoruz.
-                            buffered_io = io.BytesIO(img_data)
-                            image_file = nextcord.File(buffered_io, filename="generated_image.png")
-                            
-                            await message.reply(content=f"🎨 Here is your image for: *\"{clean_text}\"*:", file=image_file)
-                        else:
-                            await message.reply("⚠️ Görsel Discord'a yüklenirken geçici bir sorun oluştu.")
+                # KESİN DÜZELTME: Dosya yükleme hatasını (str constructor hatası) tamamen baypas etmek için
+                # resmi Nextcord Embed kartının içerisine gömerek doğrudan link olarak servis ediyoruz!
+                embed = nextcord.Embed(
+                    title="🎨 Görsel Başarıyla Üretildi!",
+                    description=f"**Açıklama:** *\"{clean_text}\"*",
+                    color=0x00ffb3
+                )
+                embed.set_image(url=image_url)
+                embed.set_footer(text="Powered by OpenAI gpt-image-1-mini")
+                
+                # Kanala fiziksel dosya yüklemeden Embed kartını gönderiyoruz
+                await message.reply(embed=embed)
                 return
 
             except Exception as e:
