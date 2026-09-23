@@ -73,7 +73,7 @@ async def on_message(message):
 
     async with message.channel.typing():
         start_time = int(time.time() * 1000)
-        prompt = message.content  # FIXED: Raw content used to avoid format mutations
+        prompt = message.content
         user_id = message.author.id
         logger.info(f'Got prompt from User {user_id}: "{prompt}"')
 
@@ -84,27 +84,40 @@ async def on_message(message):
         if is_image_request:
             logger.info("Executing failsafe Pollinations AI free image pipeline...")
             try:
-                # ─── KESİN DÜZELTME: Sinsi kelime yutma hatasını engellemek için sadece en temel komutları siliyoruz ───
+                # ─── 1. AŞAMA: PROMPTU TEMİZLE ───
                 clean_text = prompt.lower()
                 clean_text = clean_text.replace(f"@{client.user.name.lower()}", "")
                 
-                # Temel kelimeleri sınırlandırarak siliyoruz (Picture kelimesinin içindeki cup artık silinmeyecek!)
                 for word_to_remove in ["draw ", "paint ", "image ", "picture ", "resim ", "ciz ", "çiz ", "görsel ", "gorsel "]:
                     clean_text = clean_text.replace(word_to_remove, "")
                 
                 clean_text = clean_text.replace("draw", "").replace("resim", "").replace("çiz", "").replace("ciz", "")
                 clean_text = clean_text.replace(":", "").strip()
                 
-                # KESİN DÜZELTME: Değişken ismi 'clean_text' olarak tamamen eşitlendi! Boş kalsa bile asla hata üretmeyecek.
                 if not clean_text or len(clean_text) < 2:
                     clean_text = "fantasy landscape"
 
-                # Saf açıklamayı internet formatına çeviriyoruz
-                encoded_prompt = urllib.parse.quote(clean_text)
+                # ─── 2. AŞAMA: ABSOLUTE URL JOIN (ZIRHLI BAĞLANTI) ───
+                # KESİN DÜZELTME: urljoin ve urlencode kullanarak domain adını kullanıcının metninden matematiksel olarak izole ediyoruz.
+                # Artık aradaki hiçbir harf birleşip pollinations.aime yapısını tetikleyemez!
+                base_endpoint = "https://pollinations.ai"
                 
-                # Link şablonunu ayırarak en güvenli formatta birleştiriyoruz
-                image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&model=flux&nologo=true"
-                logger.info(f"🔒 ULTIMATE FIXED URL: {image_url}")
+                # Kullanıcının promptunu güvenli bir alt yol (slug) haline getiriyoruz
+                safe_slug = urllib.parse.quote(clean_text)
+                
+                # Domain ile temizlenmiş prompt yolunu kırılmaz bir duvarla birleştiriyoruz
+                target_url = urllib.parse.urljoin(base_endpoint, safe_slug)
+                
+                # Teknik parametreleri (genişlik, model vb.) güvenli bir query string olarak sonuna ekliyoruz
+                params = {
+                    "width": "1024",
+                    "height": "1024",
+                    "model": "flux",
+                    "nologo": "true"
+                }
+                image_url = f"{target_url}?{urllib.parse.urlencode(params)}"
+                
+                logger.info(f"🔒 ULTIMATE FAILSAFE URL: {image_url}")
                 
                 async with aiohttp.ClientSession() as session:
                     async with session.get(image_url, timeout=20) as response:
