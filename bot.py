@@ -96,18 +96,17 @@ async def on_message(message):
             image_keywords = ["draw", "paint", "image", "picture", "resim", "ciz", "çiz", "görsel", "gorsel"]
             is_image_request = any(keyword in prompt.lower() for keyword in image_keywords)
 
- if is_image_request:
-    logger.info("Executing Pollinations AI free image pipeline...")
-    
-    # DÜZELTME: prompt içinde bot etiketleri varsa temizle ve internet uyumlu formata çevir
-    clean_prompt_text = prompt.replace(f"@{client.user.name}", "").strip()
-    encoded_prompt = urllib.parse.quote(clean_prompt_text)
-    
-    # DÜZELTME: Kırılma riskine karşı Pollinations ana sunucu adresi en güvenli formatta sabitlendi
-    image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&model=flux&render=true"
-
+            if is_image_request:
+                logger.info("Executing Pollinations AI free image pipeline...")
                 
-                # Resmi hafızaya indirip Discord'a yüklüyoruz (0 TL Harcama)
+                # KESİN DÜZELTME: Hizalama hatasına neden olan tüm boşluklar 4-8-12 kuralına göre sıfırlandı
+                clean_prompt_text = prompt.replace(f"@{client.user.name}", "").strip()
+                encoded_prompt = urllib.parse.quote(clean_prompt_text)
+                
+                # Pollinations ana sunucu adresi en güvenli formatta sabitlendi
+                image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&model=flux&render=true"
+                
+                # Resmi harcama yapmadan (0 TL) hafızaya indiriyoruz
                 img_response = requests.get(image_url, timeout=15)
                 if img_response.status_code == 200:
                     image_file = nextcord.File(io.BytesIO(img_response.content), filename="generated_image.png")
